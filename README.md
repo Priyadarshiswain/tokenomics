@@ -22,6 +22,7 @@ is that this tool shows you why you hit a limit sooner than you expected.
 | Surface | What it does |
 |---|---|
 | `/tokenomics` | measure a session, summarise it, or render an HTML report |
+| `/tokenomics:statusline` | check or set up the status line |
 | status line | live per-call and per-session token counts, plus a compact nudge — **terminal only** |
 | compact nudge | a `Stop` hook that speaks once when context gets expensive — works everywhere, including desktop |
 | skill | Claude reaches for the mental model on its own when you ask why a session feels heavy |
@@ -49,30 +50,34 @@ Measured, not assumed: identical settings render in a terminal and show nothing 
 Desktop users get the same numbers on demand from `/tokenomics`.
 
 `statusLine` is also a user setting that a plugin cannot ship — plugin `settings.json`
-currently honours only the `agent` and `subagentStatusLine` keys — so this is one manual
-step. Add a `statusLine` block to `~/.claude/settings.json`:
+currently honours only the `agent` and `subagentStatusLine` keys — so it needs one setup
+step. The tool does it for you:
+
+```bash
+tokenomics --statusline init
+```
+
+It finds the installed script, writes the block into `~/.claude/settings.json`, and backs
+the file up first. It refuses to replace a `statusLine` you already have unless you pass
+`--force`, and refuses to touch the file at all if it is not valid JSON. To see the current
+state without changing anything:
+
+```bash
+tokenomics --statusline
+```
+
+The path it writes points at `marketplaces/` — the marketplace clone, which
+`claude plugin marketplace update` refreshes in place — rather than `cache/<sha>/`, whose
+directory name changes on every release and would silently stop existing.
+
+To do it by hand instead, add this to `~/.claude/settings.json`:
 
 ```json
 "statusLine": {
   "type": "command",
   "command": "bash ~/.claude/plugins/marketplaces/pd-claude-plugins/plugins/tokenomics/statusline/statusline.sh",
-  "refreshInterval": 5,
   "padding": 0
 }
-```
-
-Or merge it in without opening an editor:
-
-```bash
-jq '.statusLine = {"type":"command","command":"bash ~/.claude/plugins/marketplaces/pd-claude-plugins/plugins/tokenomics/statusline/statusline.sh","refreshInterval":5,"padding":0}' ~/.claude/settings.json > ~/.claude/settings.json.new && mv ~/.claude/settings.json.new ~/.claude/settings.json
-```
-
-Note the path points at `marketplaces/` — the marketplace clone, which updates in place —
-rather than `cache/<sha>/`, which gets a new directory on every release. If you cloned the
-repo manually, point it at your own checkout instead. To confirm where it landed:
-
-```bash
-ls ~/.claude/plugins/marketplaces/*/plugins/*/statusline/statusline.sh
 ```
 
 ```
@@ -87,9 +92,13 @@ Opus 5 · call  in 38  ↻41.2k  ✎2.1k  out 740
 
 Row 3 is the context window — the only "how much room is left" figure here; everything
 above it is about cost. It is green below 70%, amber to 85%, red above. Claude Code does not
-otherwise surface this in the terminal. The row is omitted rather than shown as `0%` when
-`used_percentage` is null, which it is before the first API call and again after a `/compact`
-until the next one repopulates it.
+otherwise surface this in the terminal.
+
+The percentage is *derived* rather than depended on. `used_percentage` is documented as
+possibly null early in a session, so the row falls back to `total_input_tokens ÷
+context_window_size`, and then to the last call's own usage — the row only disappears when
+no window size is known at all. An earlier version simply skipped the row when the field was
+null, which looked exactly like a broken plugin.
 
 The bar is 14 cells (≈7% each); set `TOKENOMICS_BAR_WIDTH` to change it.
 
@@ -194,7 +203,8 @@ previous contribution when a newer version of the same id arrives.
 .claude-plugin/marketplace.json      the catalog — what this repo offers
 plugins/tokenomics/                  the plugin itself; everything below ships on install
   .claude-plugin/plugin.json         manifest
-  commands/tokenomics.md             the slash command
+  commands/tokenomics.md             /tokenomics — measure and report
+  commands/statusline.md             /tokenomics:statusline — check or set up the status line
   skills/tokenomics/SKILL.md         model-triggered mental model
   scripts/tokenomics.sh              measure + render
   bin/tokenomics                     wrapper, so it is a bare command on the Bash tool's PATH

@@ -49,6 +49,47 @@ bash "$TOK" --sessions abc >/dev/null 2>&1 && bad "--sessions abc must be reject
 
 bash "$TOK" -h | grep -q '^usage:' && ok "-h prints usage" || bad "-h prints usage"
 
+# ---- --statusline init --------------------------------------------------------
+# This one WRITES to ~/.claude/settings.json, so every case runs against a throwaway
+# HOME. A bug here corrupts a real user's settings, which is why the refusal paths
+# matter more than the happy one.
+SH=$(mktemp -d); mkdir -p "$SH/.claude"
+SET="$SH/.claude/settings.json"
+
+HOME="$SH" bash "$TOK" --statusline init >/dev/null 2>&1
+jq -e '.statusLine.command' "$SET" >/dev/null 2>&1 \
+  && ok "--statusline init creates settings.json" || bad "--statusline init creates settings.json"
+
+printf '{"model":"opus","effortLevel":"high"}\n' > "$SET"
+HOME="$SH" bash "$TOK" --statusline init >/dev/null 2>&1
+[ "$(jq -r '[.model,.effortLevel]|join(",")' "$SET" 2>/dev/null)" = "opus,high" ] \
+  && ok "--statusline init preserves existing keys" || bad "--statusline init preserves existing keys"
+
+[ -f "$SET.tokenomics-bak" ] && ok "--statusline init writes a backup" || bad "--statusline init writes a backup"
+
+jq '.statusLine.command="bash /somebody/else.sh"' "$SET" > "$SH/t" && mv "$SH/t" "$SET"
+if HOME="$SH" bash "$TOK" --statusline init >/dev/null 2>&1; then
+  bad "--statusline init must refuse to clobber a foreign statusLine"
+else
+  [ "$(jq -r '.statusLine.command' "$SET")" = "bash /somebody/else.sh" ] \
+    && ok "--statusline init refuses to clobber, leaves it intact" \
+    || bad "--statusline init refused but still modified the file"
+fi
+
+HOME="$SH" bash "$TOK" --statusline init --force >/dev/null 2>&1
+[ "$(jq -r '.statusLine.command' "$SET")" != "bash /somebody/else.sh" ] \
+  && ok "--statusline init --force replaces it" || bad "--statusline init --force replaces it"
+
+printf '{ not json\n' > "$SET"
+if HOME="$SH" bash "$TOK" --statusline init >/dev/null 2>&1; then
+  bad "--statusline init must refuse invalid JSON"
+else
+  [ "$(cat "$SET")" = "{ not json" ] \
+    && ok "--statusline init leaves invalid JSON untouched" \
+    || bad "--statusline init damaged an invalid settings.json"
+fi
+rm -rf "$SH"
+
 echo "----"
 echo "$pass passed, $fail failed"
 exit "$fail"

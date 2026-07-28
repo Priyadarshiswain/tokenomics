@@ -58,16 +58,24 @@ usage:
   tokenomics.sh --watch 30 --serve 8899  live local dashboard
   tokenomics.sh --inline -o page.html    one self-contained .html, for publishing
   tokenomics.sh --json                   just the measured data
+  tokenomics.sh --statusline             show whether the status line is configured
+  tokenomics.sh --statusline init        configure it in ~/.claude/settings.json
+  tokenomics.sh --statusline init --force  overwrite an existing statusLine
 
 Bundle mode (the default) writes index.html + data.json with a session picker and an
 auto-refresh timer; serve it over http — file:// blocks fetch. --inline bakes the data
 into a single file, which is what publishing as an Artifact needs.
+
+A plugin cannot ship a statusLine (plugin settings.json honours only `agent` and
+`subagentStatusLine`), so --statusline init writes the block for you. It backs up
+settings.json first and refuses to overwrite an existing statusLine without --force.
 
 Requires jq. --serve needs python3. Deterministic: same transcript in, same bytes out.
 EOF
 }
 
 MODE="bundle"; OUT=""; DIR=""; WATCH=0; SERVE=0; ARG=""; PROJECT=""; NSESS=6; NSESS_SET=0; ALLPROJ=0
+SL_INIT=0; FORCE=0
 # Value-taking flags must verify the value exists BEFORE `shift 2`: with one argument
 # left, bash's `shift 2` fails without shifting, and this loop has no `set -e` — the
 # same flag would be reprocessed forever.
@@ -86,6 +94,9 @@ while [ $# -gt 0 ]; do
     -d)        req "$@"; DIR="$2"; shift 2 ;;
     --watch)   num "$@"; WATCH="$2"; shift 2 ;;
     --serve)   num "$@"; SERVE="$2"; shift 2 ;;
+    --statusline) MODE="statusline"; shift
+                  [ "${1:-}" = "init" ] && { SL_INIT=1; shift; } ;;
+    --force)   FORCE=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *)         ARG="$1"; shift ;;
   esac
@@ -136,6 +147,73 @@ resolve_transcript() {
 # first few lines of each file for a date (the opening record does not always carry a
 # timestamp), never parsing whole transcripts, so it stays fast even when a single
 # session is hundreds of megabytes.
+# --statusline [init]: the one piece of setup a plugin cannot do for you.
+#
+# Path choice matters and is not obvious: point at the MARKETPLACE clone, which
+# `claude plugin marketplace update` refreshes in place, and never at the versioned
+# plugin cache, whose directory name changes on every release and would silently
+# stop existing. Preference order below reflects that.
+if [ "$MODE" = "statusline" ]; then
+  SELF=$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)          # the plugin root
+  SETTINGS="$HOME/.claude/settings.json"
+
+  SL=""
+  for c in "$HOME"/.claude/plugins/marketplaces/*/plugins/*/statusline/statusline.sh \
+           "$SELF/statusline/statusline.sh"; do
+    [ -f "$c" ] && { SL="$c"; break; }
+  done
+  [ -n "$SL" ] || { echo "tokenomics: cannot find statusline.sh" >&2; exit 1; }
+  # Write $HOME back as ~ so the settings file stays portable between machines.
+  SL_TILDE=$(printf '%s' "$SL" | sed "s#^$HOME#~#")
+  CMD="bash $SL_TILDE"
+
+  CURRENT=""
+  [ -f "$SETTINGS" ] && CURRENT=$(jq -r '.statusLine.command // empty' "$SETTINGS" 2>/dev/null)
+
+  if [ "$SL_INIT" -eq 0 ]; then                                # report only
+    echo "script:   $SL"
+    if [ -z "$CURRENT" ]; then
+      echo "settings: no statusLine configured"
+      echo "run:      tokenomics.sh --statusline init"
+    elif [ "$CURRENT" = "$CMD" ]; then
+      echo "settings: configured, pointing here ✓"
+    else
+      echo "settings: configured, but pointing elsewhere:"
+      echo "          $CURRENT"
+      echo "run:      tokenomics.sh --statusline init --force  to repoint it"
+    fi
+    exit 0
+  fi
+
+  if [ -f "$SETTINGS" ] && ! jq -e . "$SETTINGS" >/dev/null 2>&1; then
+    echo "tokenomics: $SETTINGS is not valid JSON — refusing to touch it" >&2; exit 1
+  fi
+  if [ -n "$CURRENT" ] && [ "$CURRENT" != "$CMD" ] && [ "$FORCE" -eq 0 ]; then
+    echo "tokenomics: a statusLine is already configured:" >&2
+    echo "  $CURRENT" >&2
+    echo "re-run with --force to replace it" >&2; exit 1
+  fi
+
+  mkdir -p "$(dirname "$SETTINGS")" 2>/dev/null
+  [ -f "$SETTINGS" ] || echo '{}' > "$SETTINGS"
+  cp "$SETTINGS" "$SETTINGS.tokenomics-bak" 2>/dev/null
+
+  # tmp + mv so an interrupted write cannot leave settings.json truncated.
+  TMP="$SETTINGS.tokenomics-tmp.$$"
+  if jq --arg c "$CMD" '.statusLine = {type:"command", command:$c, padding:0}' \
+       "$SETTINGS" > "$TMP" 2>/dev/null && [ -s "$TMP" ]; then
+    mv "$TMP" "$SETTINGS"
+    echo "configured $SETTINGS"
+    echo "  statusLine → $CMD"
+    echo "  backup     → $SETTINGS.tokenomics-bak"
+    echo "Takes effect on your next interaction with Claude Code."
+  else
+    rm -f "$TMP"
+    echo "tokenomics: failed to update $SETTINGS (left unchanged)" >&2; exit 1
+  fi
+  exit 0
+fi
+
 if [ "$MODE" = "projects" ]; then
   printf '%5s %7s  %-10s %-10s  %s\n' "sess" "size" "oldest" "newest" "project"
   for d in "$PROJ_ROOT"/*/; do

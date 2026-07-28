@@ -336,6 +336,7 @@ message's previous contribution when a newer version of the same id arrives.
 | Surface | What it does |
 |---|---|
 | `/tokenomics` | measure a session, summarise it, or render an HTML report |
+| `/tokenomics:statusline` | check or set up the status line |
 | `scripts/tokenomics.sh` | the measure + render tool |
 | `statusline/statusline.sh` | live per-call and per-session counts, a context bar, and the compact nudge — terminal only |
 | `hooks/compact-nudge.sh` | the cost half of that nudge as a `Stop` hook, so it also reaches the desktop app |
@@ -355,6 +356,8 @@ bash scripts/tokenomics.sh --projects                 # every project, sizes, da
 bash scripts/tokenomics.sh --watch 30 --serve 8899    # live dashboard at localhost:8899
 bash scripts/tokenomics.sh --inline -o page.html      # self-contained snapshot, for publishing
 bash scripts/tokenomics.sh --json                     # just the measured data
+bash scripts/tokenomics.sh --statusline init          # configure the status line
+bash scripts/tokenomics.sh --help                     # every flag
 ```
 
 Deterministic by construction — the "measured through" stamp comes from the last record's
