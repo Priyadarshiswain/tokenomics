@@ -150,16 +150,18 @@ fi
 # the next one, so the row is skipped rather than drawn as a misleading 0%.
 UP=${USED%%.*}; UP=${UP:-0}
 if [ -n "$USED" ]; then
-  # Line glyphs, not blocks: the bar sits under two dense rows of digits, and a heavy
-  # ▓ block competes with them for attention. This is the least loud thing that still
-  # reads as a bar. 14 cells ≈ 7% each — enough resolution to see movement per turn.
+  # Not the ▓░ blocks this started with: the bar sits under two dense rows of digits and
+  # a heavy block competes with them. Dots recede almost completely when the window is
+  # mostly empty, which is when the row has nothing to say. Box-drawing glyphs (━─) were
+  # the other candidate but render with hairline gaps in some terminal fonts; ■ and ·
+  # do not. 14 cells ≈ 7% each — enough resolution to see movement per turn.
   BW=${TOKENOMICS_BAR_WIDTH:-14}
   FILL=$(( UP * BW / 100 )); [ "$FILL" -gt "$BW" ] && FILL=$BW
   [ "$FILL" -lt 0 ] && FILL=0
   EMPTY=$(( BW - FILL ))
   BAR=""
-  [ "$FILL"  -gt 0 ] && printf -v S "%${FILL}s"  && BAR="${S// /━}"
-  [ "$EMPTY" -gt 0 ] && printf -v S "%${EMPTY}s" && BAR="${BAR}${S// /─}"
+  [ "$FILL"  -gt 0 ] && printf -v S "%${FILL}s"  && BAR="${S// /■}"
+  [ "$EMPTY" -gt 0 ] && printf -v S "%${EMPTY}s" && BAR="${BAR}${S// /·}"
   if   [ "$UP" -ge 85 ]; then C=$RED
   elif [ "$UP" -ge 70 ]; then C=$AMB
   else C=$GRN; fi
