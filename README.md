@@ -22,7 +22,7 @@ is that this tool shows you why you hit a limit sooner than you expected.
 | Surface | What it does |
 |---|---|
 | `/tokenomics` | measure a session, summarise it, or render an HTML report |
-| status line | live per-call and per-session token counts, plus a compact nudge |
+| status line | live per-call and per-session token counts, plus a compact nudge — **terminal only** |
 | skill | Claude reaches for the mental model on its own when you ask why a session feels heavy |
 
 ## Install
@@ -41,7 +41,12 @@ terminal, call the script by path (see below).
 
 ## The status line
 
-`statusLine` is a user setting and a plugin cannot ship one — plugin `settings.json`
+**Terminal only.** The status line renders in the Claude Code CLI. It does not appear in the
+desktop app — the setting applies and the script runs, but there is no surface to draw it on.
+Measured, not assumed: identical settings render in a terminal and show nothing in desktop.
+Desktop users get the same numbers on demand from `/tokenomics`.
+
+`statusLine` is also a user setting that a plugin cannot ship — plugin `settings.json`
 currently honours only the `agent` and `subagentStatusLine` keys — so this is one manual
 step. Add a `statusLine` block to `~/.claude/settings.json`:
 
