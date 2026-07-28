@@ -77,7 +77,7 @@ ls ~/.claude/plugins/marketplaces/*/plugins/*/statusline/statusline.sh
 ```
 Opus 5 · call  in 38  ↻41.2k  ✎2.1k  out 740
          sess  in 2.0k  ↻3.9M  ✎238.8k  out 55.2k
-         ctx  ▓▓▓▓▓▓▓▓▓▓▓▓░░  91%  183.0k/200.0k
+         ctx  ━━━━━━━━━━━━──  91%  183.0k/200.0k
          ⚠ /compact now — ctx 91%; measured cut ≈67%
 ```
 
@@ -88,6 +88,8 @@ above it is about cost. It is green below 70%, amber to 85%, red above. Claude C
 otherwise surface this in the terminal. The row is omitted rather than shown as `0%` when
 `used_percentage` is null, which it is before the first API call and again after a `/compact`
 until the next one repopulates it.
+
+The bar is 14 cells (≈7% each); set `TOKENOMICS_BAR_WIDTH` to change it.
 
 Row 4, the compact nudge, appears only at ≥70% and ≥85%.
 
