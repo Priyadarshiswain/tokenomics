@@ -166,8 +166,11 @@ fi
 #   2. total_input_tokens         — context tokens, from the last response
 #   3. the last call's own usage  — always there once a call has happened
 # Only when no window size is known at all is the row genuinely undrawable.
+# Test usefulness, not presence: total_input_tokens can arrive as a literal 0, which is
+# non-empty and would satisfy a -n check while carrying no information. That skipped the
+# bar AND suppressed the nudge, since both read CTXNOW.
 CTXNOW=$CTXIN
-[ -n "$CTXNOW" ] || CTXNOW=$(( ${L_IN:-0} + ${L_CR:-0} + ${L_CW:-0} ))
+[ "${CTXNOW:-0}" -gt 0 ] 2>/dev/null || CTXNOW=$(( ${L_IN:-0} + ${L_CR:-0} + ${L_CW:-0} ))
 
 UP=""
 if [ -n "$USED" ]; then
@@ -182,7 +185,13 @@ if [ -n "$UP" ]; then
   # mostly empty, which is when the row has nothing to say. Box-drawing glyphs (━─) were
   # the other candidate but render with hairline gaps in some terminal fonts; ■ and ·
   # do not. 14 cells ≈ 7% each — enough resolution to see movement per turn.
+  # Validate before arithmetic. Under `set -u`, $(( UP * BW )) with a non-numeric BW is an
+  # unbound-variable error that kills the script — and since output is accumulated and
+  # printed at the end, a typo in this variable blanks the whole status line, not just
+  # the bar. Fall back to the default rather than taking the line down.
   BW=${TOKENOMICS_BAR_WIDTH:-14}
+  case "$BW" in ''|*[!0-9]*) BW=14 ;; esac
+  [ "$BW" -gt 0 ] || BW=14
   FILL=$(( UP * BW / 100 )); [ "$FILL" -gt "$BW" ] && FILL=$BW
   [ "$FILL" -lt 0 ] && FILL=0
   EMPTY=$(( BW - FILL ))

@@ -90,6 +90,45 @@ else
 fi
 rm -rf "$SH"
 
+# ---- status line ---------------------------------------------------------------
+# The context row derives its percentage through a fallback chain, and every bug in it so
+# far has looked the same from outside: a row silently not existing, indistinguishable
+# from a broken plugin. So assert the row is PRESENT for each shape of payload.
+SL="../statusline/statusline.sh"
+FIX=$(cd .. && pwd)/tests/fixture.jsonl
+pay() { # $1 extra context_window fields
+  printf '{"model":{"display_name":"M"},"transcript_path":"%s","context_window":{%s"current_usage":{"input_tokens":38,"output_tokens":740,"cache_read_input_tokens":150000,"cache_creation_input_tokens":2100}}}' "$FIX" "$1"
+}
+ctxrow() { pay "$1" | bash "$SL" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | grep -c '^ *ctx '; }
+
+[ "$(ctxrow '"used_percentage":76,"context_window_size":200000,"total_input_tokens":152000,')" = 1 ] \
+  && ok "ctx row: used_percentage present" || bad "ctx row: used_percentage present"
+
+[ "$(ctxrow '"context_window_size":200000,"total_input_tokens":152000,')" = 1 ] \
+  && ok "ctx row: derived from total_input_tokens" || bad "ctx row: derived from total_input_tokens"
+
+# The regression that hid the row AND the nudge: a literal 0 is non-empty, so a presence
+# check passed while the value carried nothing.
+[ "$(ctxrow '"context_window_size":200000,"total_input_tokens":0,')" = 1 ] \
+  && ok "ctx row: total_input_tokens=0 falls through to current_usage" \
+  || bad "ctx row: total_input_tokens=0 falls through to current_usage"
+
+[ "$(ctxrow '"context_window_size":200000,')" = 1 ] \
+  && ok "ctx row: derived from current_usage alone" || bad "ctx row: derived from current_usage alone"
+
+# No window size anywhere: the bar is genuinely undrawable, but the cost tier must survive.
+n=$(pay '' | bash "$SL" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | grep -c 'compact')
+[ "$n" -ge 1 ] && ok "no window size: bar drops but cost nudge survives" \
+  || bad "no window size: bar drops but cost nudge survives"
+
+# A typo in a documented env var must not take the whole line down.
+for w in abc -5 0 ''; do
+  n=$(pay '"used_percentage":50,"context_window_size":200000,"total_input_tokens":100000,' \
+      | TOKENOMICS_BAR_WIDTH="$w" bash "$SL" 2>/dev/null | grep -c .)
+  [ "${n:-0}" -ge 3 ] || { bad "TOKENOMICS_BAR_WIDTH='$w' blanks the status line"; break; }
+done
+[ "${n:-0}" -ge 3 ] && ok "hostile TOKENOMICS_BAR_WIDTH falls back, line survives"
+
 echo "----"
 echo "$pass passed, $fail failed"
 exit "$fail"
