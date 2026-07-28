@@ -1,7 +1,7 @@
 {
   "name": "tokenomics",
-  "version": "0.1.0",
   "description": "Measure where a Claude Code session's tokens and context actually go, per call and per session — as an HTML report, a live status line, or a compact nudge that works in the desktop app too. Token counts only, no pricing.",
+  "license": "MIT",
   "keywords": [
     "tokens",
     "context",
