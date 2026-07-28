@@ -44,10 +44,13 @@ case "$CTX" in ''|*[!0-9]*) exit 0 ;; esac
 [ "$CTX" -gt 0 ] || exit 0
 
 # ---- thresholds are ABSOLUTE, deliberately --------------------------------------
-# Not a percentage of the context window. Two reasons. The window size is nowhere in
-# the hook payload or the transcript and differs per model, so any percentage would
-# rest on a hardcoded constant that is wrong for somebody — measured here: a live
-# opus-5 session sat at 234k, which a 200k assumption would have called 117%.
+# Not a percentage of the context window. Two reasons. The window size is not given to
+# hooks — the status line receives it as .context_window.context_window_size, but no
+# hook payload carries it and it is not in the transcript either, so a percentage here
+# would rest on a hardcoded constant that is wrong for somebody. Measured: a live opus-5
+# session sat at 234k, which a 200k assumption would have called 117%. That session was
+# on an extended (~1M) window, where a 70% rule would not fire until 700k — long after
+# the rent became the point.
 # More importantly, percentage answers "am I running out of room", which the UI already
 # tracks. Rent is what this plugin is about, and 200k of context costs the same per
 # call whether the window is 250k or 1M.

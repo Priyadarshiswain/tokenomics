@@ -114,11 +114,17 @@ be noise.
 | `TOKENOMICS_NUDGE` | `on` | set to `off` to silence it entirely |
 
 **Thresholds are absolute token counts, not a percentage of the context window** — on
-purpose. The window size appears in neither the hook payload nor the transcript and differs
-by model, so any percentage rests on a constant that is wrong for someone; a live `opus-5`
-session measured here sat at 234k, which a 200k assumption would call 117%. And percentage
-answers "am I running out of room", which the UI already tracks. Rent is what this plugin is
-about, and 200k of context costs the same per call whether the window is 250k or 1M.
+purpose, for two reasons.
+
+*It isn't available.* The status line is handed `context_window.context_window_size`; hooks
+are not, and it is not in the transcript either. Any percentage here would rest on a
+hardcoded constant that is wrong for someone — a live `opus-5` session measured here sat at
+234k, which a 200k assumption would call 117%.
+
+*It asks the wrong question.* Percentage answers "am I running out of room", which the UI
+already tracks. Rent is what this plugin is about, and 200k of context costs the same per
+call whether the window is 250k or 1M. On an extended (~1M) window a 70% rule would not fire
+until 700k — long after the cost became the point.
 
 Cost: it reads a bounded 256 KB tail of the transcript rather than the whole file —
 **0.04s on a 253 MB transcript**. Every failure path exits silently, so a missing `jq`,
