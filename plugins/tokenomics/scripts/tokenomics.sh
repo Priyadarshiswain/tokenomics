@@ -40,6 +40,33 @@
 # Narrative companion: docs/tokenomics-explained.md
 set -uo pipefail
 
+usage() { cat <<'EOF'
+tokenomics.sh — measure a Claude Code session transcript and render it as HTML.
+
+usage:
+  tokenomics.sh                          newest session of the CURRENT project
+  tokenomics.sh <session-id>             a specific session (searched everywhere)
+  tokenomics.sh /path/to/x.jsonl         an explicit transcript
+  tokenomics.sh --list                   recent sessions of the current project
+  tokenomics.sh --projects               every project: sizes, date ranges
+  tokenomics.sh --project <path|slug>    target another project
+  tokenomics.sh --sessions N             how many sessions --list / the picker offers
+  tokenomics.sh --all-projects           picker spans EVERY project, not just this one
+  tokenomics.sh -d DIR                   choose the bundle directory
+  tokenomics.sh --watch N                regenerate data.json every N seconds (foreground)
+  tokenomics.sh --serve PORT             serve the bundle at http://localhost:PORT/
+  tokenomics.sh --watch 30 --serve 8899  live local dashboard
+  tokenomics.sh --inline -o page.html    one self-contained .html, for publishing
+  tokenomics.sh --json                   just the measured data
+
+Bundle mode (the default) writes index.html + data.json with a session picker and an
+auto-refresh timer; serve it over http — file:// blocks fetch. --inline bakes the data
+into a single file, which is what publishing as an Artifact needs.
+
+Requires jq. --serve needs python3. Deterministic: same transcript in, same bytes out.
+EOF
+}
+
 MODE="bundle"; OUT=""; DIR=""; WATCH=0; SERVE=0; ARG=""; PROJECT=""; NSESS=6; NSESS_SET=0; ALLPROJ=0
 # Value-taking flags must verify the value exists BEFORE `shift 2`: with one argument
 # left, bash's `shift 2` fails without shifting, and this loop has no `set -e` — the
@@ -59,7 +86,7 @@ while [ $# -gt 0 ]; do
     -d)        req "$@"; DIR="$2"; shift 2 ;;
     --watch)   num "$@"; WATCH="$2"; shift 2 ;;
     --serve)   num "$@"; SERVE="$2"; shift 2 ;;
-    -h|--help) sed -n '2,34p' "$0"; exit 0 ;;
+    -h|--help) usage; exit 0 ;;
     *)         ARG="$1"; shift ;;
   esac
 done
@@ -69,10 +96,11 @@ command -v jq >/dev/null || { echo "tokenomics: jq is required" >&2; exit 1; }
 PROJ_ROOT="$HOME/.claude/projects"
 
 # Claude Code stores a project's transcripts under a slug of its absolute path, with
-# "/" and "." both flattened to "-":
+# EVERY non-alphanumeric character flattened to "-" (not just "/" and "."):
 #   /Users/me/Projects/App            -> -Users-me-Projects-App
 #   /Users/me/Projects/App/.claude/wt -> -Users-me-Projects-App--claude-wt
-slugdir() { printf '%s/%s' "$PROJ_ROOT" "$(printf '%s' "$1" | sed 's#[/.]#-#g')"; }
+#   /Users/me/my_app v2               -> -Users-me-my-app-v2
+slugdir() { printf '%s/%s' "$PROJ_ROOT" "$(printf '%s' "$1" | sed 's#[^A-Za-z0-9]#-#g')"; }
 
 # Which project's transcripts are we looking at?
 #   --project <path|slug>  wins
@@ -84,7 +112,10 @@ project_dir() {
   [ -d "$p" ] && [ -n "$(ls "$p"/*.jsonl 2>/dev/null)" ] && { printf '%s' "$p"; return; }  # already a transcript dir
   [ -d "$PROJ_ROOT/$p" ] && { printf '%s' "$PROJ_ROOT/$p"; return; }                        # a bare slug
   d=$(slugdir "$p"); [ -d "$d" ] && { printf '%s' "$d"; return; }                           # a working directory
-  ls -td "$PROJ_ROOT"/*/ 2>/dev/null | head -1 | sed 's#/$##'                               # last resort
+  # Last resort — and say so: silently measuring the wrong project would produce
+  # perfectly plausible numbers with nothing to flag them as someone else's.
+  echo "tokenomics: no transcripts found for '$p' — falling back to the most recently used project" >&2
+  ls -td "$PROJ_ROOT"/*/ 2>/dev/null | head -1 | sed 's#/$##'
 }
 
 resolve_transcript() {
@@ -125,7 +156,8 @@ if [ "$MODE" = "list" ]; then
   LIMIT=$NSESS; [ "$NSESS_SET" = 1 ] || LIMIT=20
   echo "project: $d"
   printf '%-10s %-17s %7s %12s  %s\n' "session" "started (UTC)" "calls" "tokens" "title"
-  for t in $(ls -t "$d"/*.jsonl 2>/dev/null | head -"$LIMIT"); do
+  # while-read, not `for t in $(...)`: word-splitting would shred any path with a space.
+  ls -t "$d"/*.jsonl 2>/dev/null | head -"$LIMIT" | while IFS= read -r t; do
     jq -s -r --arg id "$(basename "$t" .jsonl)" '
       # sort_by(.timestamp) matters: group_by reorders calls BY MESSAGE ID, so without it
       # $u[0] is an arbitrary mid-session call and the "started" column shows its time.
@@ -171,7 +203,7 @@ measure() {
          | (.message.content // []) | if type=="array" then .[] else empty end
          | select(.type=="tool_use") | {key: .id, value: .name} ] | from_entries) as $tname
 
-    | ([ $all[] | select(.type=="system" and .subtype=="compact_boundary") ] | .[0]) as $cb
+    | ([ $all[] | select(.type=="system" and .subtype=="compact_boundary") ]) as $cbs
 
     | ([ $all[] | select(.message.usage != null) ]) as $raw
     | ($raw | group_by(.message.id) | map(.[-1]) | sort_by(.timestamp)) as $u
@@ -188,9 +220,11 @@ measure() {
         stop: (.message.stop_reason // "")
       })) as $calls
 
-    | (if $cb == null then -1
-       else ([ $calls | to_entries[] | select(.value.ts > $cb.timestamp) | .key ] | (.[0] // -1))
-       end) as $cIdx
+    # One entry per compact boundary: the index of the first call after it. Sessions
+    # compact more than once; measuring only the first misattributes every later one.
+    | ($cbs | map(. as $b
+        | [ $calls | to_entries[] | select(.value.ts > $b.timestamp) | .key ] | (.[0] // -1)
+      )) as $cIdxs
 
     # Idle-expiry threshold follows the TTL this session actually bought: a 5-minute
     # cache dies in 5 minutes, a 1-hour one in 60. Guessing 60 for a 5m session would
@@ -209,7 +243,7 @@ measure() {
           }
         | . + { cause:
             (if (.rebuild | not) then null
-             elif $i == $cIdx                       then "compact"
+             elif ($cIdxs | index($i)) != null      then "compact"
              elif .model != $calls[$i-1].model      then "model switch"
              elif .gapMin >= $ttlMin                then "idle gap — cache TTL expiry (\(.gapMin)m)"
              elif $calls[$i-1].stop == "end_turn"
@@ -257,19 +291,20 @@ measure() {
         types:  ($all | group_by(.type) | map({name: .[0].type, n: length}) | sort_by(-.n)),
         subagents: ([ $all[] | select(.isSidechain == true) ] | length),
 
-        compact: (if $cb == null or $cIdx < 1 then null else {
-          t: ($cb.timestamp[11:16]),
-          trigger:       ($cb.compactMetadata.trigger // "?"),
-          preTokens:     ($cb.compactMetadata.preTokens // 0),
-          postTokens:    ($cb.compactMetadata.postTokens // 0),
-          droppedTokens: ($cb.compactMetadata.cumulativeDroppedTokens // 0),
-          durationMs:    ($cb.compactMetadata.durationMs // 0),
-          callIndex:  $cIdx,
-          readBefore: $C[$cIdx-1].cr,
-          readAfter:  $C[$cIdx].cr,
-          write:      $C[$cIdx].cw,
-          model:      $C[$cIdx].model
-        } end),
+        compacts: ([ range($cbs | length) as $k
+          | $cbs[$k] as $b | $cIdxs[$k] as $ci
+          | select($ci >= 1)
+          | { t: ($b.timestamp[11:16]),
+              trigger:       ($b.compactMetadata.trigger // "?"),
+              preTokens:     ($b.compactMetadata.preTokens // 0),
+              postTokens:    ($b.compactMetadata.postTokens // 0),
+              droppedTokens: ($b.compactMetadata.cumulativeDroppedTokens // 0),
+              durationMs:    ($b.compactMetadata.durationMs // 0),
+              callIndex:  $ci,
+              readBefore: $C[$ci-1].cr,
+              readAfter:  $C[$ci].cr,
+              write:      $C[$ci].cw,
+              model:      $C[$ci].model } ]),
 
         rebuilds: ($C | map(select(.rebuild))
                      | map({i, t, cause, cw, cw1h, cw5m, cr, model,
@@ -396,12 +431,13 @@ cat <<'JS'
    billed that way, and a dollar headline reads as a bill no matter how it is captioned.
    Tokens and context are what this measures, so tokens are what it shows. */
 
-const f = n => (n || 0).toLocaleString("en-IN");
+/* no locale argument: digit grouping follows the viewer's own locale */
+const f = n => (n || 0).toLocaleString();
 const pct = (a,b) => b ? (a/b*100) : 0;
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 function render(DATA, root) {
-  const T = DATA.totals, C = DATA.calls, K = DATA.compact, o = [];
+  const T = DATA.totals, C = DATA.calls, KS = DATA.compacts || [], o = [];
   if (!C.length) { root.innerHTML = '<section class="card">No API calls in this transcript yet.</section>'; return; }
 
   const alt = [DATA.aiTitle, DATA.slug].filter(x => x && x !== DATA.title);
@@ -420,7 +456,7 @@ function render(DATA, root) {
       <span class="chip">tier <b>${esc(DATA.tier)}</b></span>
       <span class="chip">entrypoint <b>${esc(DATA.entrypoint)}</b></span>
       <span class="chip">cache TTL <b>${T.cc1h&&T.cc5m?"1h + 5m":T.cc1h?"1h":T.cc5m?"5m":"—"}</b></span>
-      ${K?`<span class="chip">compact <b>${esc(K.t)}</b> (${esc(K.trigger)})</span>`:``}
+      ${KS.map(K=>`<span class="chip">compact <b>${esc(K.t)}</b> (${esc(K.trigger)})</span>`).join("")}
     </div>
   </header>`);
 
@@ -461,7 +497,7 @@ function render(DATA, root) {
     </table></div>
   </section>`);
 
-  if (K) {
+  for (const K of KS) {
     const savePer = K.readBefore - K.readAfter;
     const be = savePer > 0 ? Math.ceil(K.write / savePer) : null;
     const after = T.calls - K.callIndex, peak = C.reduce((m,c)=>Math.max(m,c.cr),0);
@@ -718,7 +754,10 @@ build_sessions_json() {
 {
   echo '['
   first=1
-  for t in $CANDIDATES; do
+  # <<< keeps the loop in this shell (a pipe would fork one and lose $first);
+  # while-read keeps paths with spaces whole.
+  while IFS= read -r t; do
+    [ -n "$t" ] || continue
     id=$(basename "$t" .jsonl); s=${id%%-*}
     # Finished sessions never change, so their data is generated once and reused across runs.
     # Always regenerate the targeted session — that is the one still growing.
@@ -741,7 +780,7 @@ build_sessions_json() {
           --slurpfile d "$DIR/data-$s.json" \
       '{id:$id, full:$full, title:$title, started:$started, project:$project,
         primary:($primary=="yes"), calls:($d[0].totals.calls), tokens:($d[0].totals.total)}'
-  done
+  done <<< "$CANDIDATES"
   echo ']'
 } > "$DIR/sessions.json.tmp" && mv "$DIR/sessions.json.tmp" "$DIR/sessions.json"
   [ -n "$quiet" ] || echo "picker: $(jq 'length' "$DIR/sessions.json") sessions" >&2
@@ -789,7 +828,7 @@ const every = document.getElementById("every");
 const sess  = document.getElementById("sess");
 let timer = null, lastThrough = null, primaryId = null;
 
-const nf = n => (n||0).toLocaleString("en-IN");
+const nf = n => (n||0).toLocaleString();
 
 async function loadIndex() {
   try {

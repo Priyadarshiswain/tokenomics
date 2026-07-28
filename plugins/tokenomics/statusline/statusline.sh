@@ -14,6 +14,9 @@
 set -uo pipefail
 
 J=$(cat)
+# Without jq every field below reads empty and the line renders as stray glyphs — a
+# "plugin is broken" report. Say what is actually missing instead.
+command -v jq >/dev/null 2>&1 || { printf 'tokenomics: jq not found — install jq to enable this status line\n'; exit 0; }
 g() { printf '%s' "$J" | jq -r "$1 // empty" 2>/dev/null; }
 
 MODEL=$(g '.model.display_name')
@@ -35,7 +38,8 @@ if [ -z "$F" ] || [ ! -f "$F" ]; then
   if [ -n "$SID" ]; then F=$(ls "$PR"/*/"$SID".jsonl 2>/dev/null | head -1); fi
   if [ -z "$F" ] || [ ! -f "$F" ]; then
     CWD=$(g '.workspace.project_dir'); [ -n "$CWD" ] || CWD=$(g '.cwd')
-    SLUG=$(printf '%s' "$CWD" | sed 's#[/.]#-#g')
+    # Claude Code's slug flattens EVERY non-alphanumeric character, not just / and .
+    SLUG=$(printf '%s' "$CWD" | sed 's#[^A-Za-z0-9]#-#g')
     F=$(ls -t "$PR/$SLUG"/*.jsonl 2>/dev/null | head -1)
   fi
 fi
@@ -55,6 +59,13 @@ human() { local n=${1:-0}
 # ~2x high. We keep the running contribution of the newest id and subtract it when
 # that id reappears -- which makes the dedup work across ticks, not just per chunk.
 STATED="$HOME/.claude/.tokenomics-statusline"; mkdir -p "$STATED" 2>/dev/null
+# Housekeeping, at most once a day: state is one small file per session and would
+# otherwise accumulate forever. 30 days untouched means that session stopped growing.
+CLEAN="$STATED/.cleaned"
+if [ -z "$(find "$CLEAN" -mtime -1 2>/dev/null)" ]; then
+  find "$STATED" -type f \( -name '*.state' -o -name '*.nudge' \) -mtime +30 -delete 2>/dev/null
+  touch "$CLEAN" 2>/dev/null
+fi
 TOT=""
 if [ -n "$F" ] && [ -f "$F" ]; then
   ST="$STATED/$(basename "$F" .jsonl).state"

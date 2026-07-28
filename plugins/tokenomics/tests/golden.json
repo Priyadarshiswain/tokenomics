@@ -1,0 +1,299 @@
+{
+  "session": "fixture0-0000-0000-0000-000000000000",
+  "title": "Fixture Seat",
+  "customTitle": "Fixture Seat",
+  "aiTitle": "Golden fixture session",
+  "slug": "golden-fixture",
+  "lastPrompt": "measure this fixture",
+  "measuredThrough": "2026-01-01T11:50:05.000Z",
+  "firstCall": "2026-01-01T10:00:00.000Z",
+  "entrypoint": "cli",
+  "effort": "high",
+  "tier": "standard",
+  "calls": [
+    {
+      "ts": "2026-01-01T10:00:00.000Z",
+      "t": "10:00",
+      "model": "opus-5",
+      "cr": 0,
+      "cw": 50000,
+      "cw1h": 50000,
+      "cw5m": 0,
+      "out": 100,
+      "inp": 10,
+      "stop": "tool_use",
+      "i": 0,
+      "gapMin": 0,
+      "rebuild": false,
+      "cause": null
+    },
+    {
+      "ts": "2026-01-01T10:01:00.000Z",
+      "t": "10:01",
+      "model": "opus-5",
+      "cr": 50000,
+      "cw": 2000,
+      "cw1h": 2000,
+      "cw5m": 0,
+      "out": 200,
+      "inp": 5,
+      "stop": "end_turn",
+      "i": 1,
+      "gapMin": 1,
+      "rebuild": false,
+      "cause": null
+    },
+    {
+      "ts": "2026-01-01T10:05:00.000Z",
+      "t": "10:05",
+      "model": "opus-5",
+      "cr": 30000,
+      "cw": 20000,
+      "cw1h": 20000,
+      "cw5m": 0,
+      "out": 150,
+      "inp": 8,
+      "stop": "tool_use",
+      "i": 2,
+      "gapMin": 4,
+      "rebuild": true,
+      "cause": "turn boundary"
+    },
+    {
+      "ts": "2026-01-01T11:30:00.000Z",
+      "t": "11:30",
+      "model": "opus-5",
+      "cr": 10000,
+      "cw": 60000,
+      "cw1h": 60000,
+      "cw5m": 0,
+      "out": 80,
+      "inp": 3,
+      "stop": "end_turn",
+      "i": 3,
+      "gapMin": 85,
+      "rebuild": true,
+      "cause": "idle gap — cache TTL expiry (85m)"
+    },
+    {
+      "ts": "2026-01-01T11:36:00.000Z",
+      "t": "11:36",
+      "model": "opus-5",
+      "cr": 5000,
+      "cw": 30000,
+      "cw1h": 30000,
+      "cw5m": 0,
+      "out": 60,
+      "inp": 2,
+      "stop": "tool_use",
+      "i": 4,
+      "gapMin": 6,
+      "rebuild": true,
+      "cause": "compact"
+    },
+    {
+      "ts": "2026-01-01T11:40:00.000Z",
+      "t": "11:40",
+      "model": "sonnet-5",
+      "cr": 3000,
+      "cw": 15000,
+      "cw1h": 15000,
+      "cw5m": 0,
+      "out": 40,
+      "inp": 1,
+      "stop": "end_turn",
+      "i": 5,
+      "gapMin": 4,
+      "rebuild": true,
+      "cause": "model switch"
+    },
+    {
+      "ts": "2026-01-01T11:46:00.000Z",
+      "t": "11:46",
+      "model": "sonnet-5",
+      "cr": 2000,
+      "cw": 12000,
+      "cw1h": 12000,
+      "cw5m": 0,
+      "out": 70,
+      "inp": 4,
+      "stop": "tool_use",
+      "i": 6,
+      "gapMin": 6,
+      "rebuild": true,
+      "cause": "compact"
+    },
+    {
+      "ts": "2026-01-01T11:50:05.000Z",
+      "t": "11:50",
+      "model": "sonnet-5",
+      "cr": 14000,
+      "cw": 500,
+      "cw1h": 500,
+      "cw5m": 0,
+      "out": 500,
+      "inp": 6,
+      "stop": "end_turn",
+      "i": 7,
+      "gapMin": 4,
+      "rebuild": false,
+      "cause": null
+    }
+  ],
+  "totals": {
+    "calls": 8,
+    "input": 39,
+    "output": 1200,
+    "cread": 114000,
+    "cwrite": 189500,
+    "cc1h": 189500,
+    "cc5m": 0,
+    "total": 304739
+  },
+  "models": [
+    {
+      "name": "opus-5",
+      "n": 5
+    },
+    {
+      "name": "sonnet-5",
+      "n": 3
+    }
+  ],
+  "stops": [
+    {
+      "name": "end_turn",
+      "n": 4
+    },
+    {
+      "name": "tool_use",
+      "n": 4
+    }
+  ],
+  "types": [
+    {
+      "name": "assistant",
+      "n": 9
+    },
+    {
+      "name": "user",
+      "n": 3
+    },
+    {
+      "name": "system",
+      "n": 2
+    },
+    {
+      "name": "ai-title",
+      "n": 1
+    },
+    {
+      "name": "custom-title",
+      "n": 1
+    },
+    {
+      "name": "last-prompt",
+      "n": 1
+    }
+  ],
+  "subagents": 1,
+  "compacts": [
+    {
+      "t": "11:35",
+      "trigger": "manual",
+      "preTokens": 70000,
+      "postTokens": 5000,
+      "droppedTokens": 65000,
+      "durationMs": 12000,
+      "callIndex": 4,
+      "readBefore": 10000,
+      "readAfter": 5000,
+      "write": 30000,
+      "model": "opus-5"
+    },
+    {
+      "t": "11:45",
+      "trigger": "auto",
+      "preTokens": 20000,
+      "postTokens": 3000,
+      "droppedTokens": 82000,
+      "durationMs": 8000,
+      "callIndex": 6,
+      "readBefore": 3000,
+      "readAfter": 2000,
+      "write": 12000,
+      "model": "sonnet-5"
+    }
+  ],
+  "rebuilds": [
+    {
+      "i": 2,
+      "t": "10:05",
+      "cause": "turn boundary",
+      "cw": 20000,
+      "cw1h": 20000,
+      "cw5m": 0,
+      "cr": 30000,
+      "model": "opus-5",
+      "crBefore": 50000
+    },
+    {
+      "i": 3,
+      "t": "11:30",
+      "cause": "idle gap — cache TTL expiry (85m)",
+      "cw": 60000,
+      "cw1h": 60000,
+      "cw5m": 0,
+      "cr": 10000,
+      "model": "opus-5",
+      "crBefore": 30000
+    },
+    {
+      "i": 4,
+      "t": "11:36",
+      "cause": "compact",
+      "cw": 30000,
+      "cw1h": 30000,
+      "cw5m": 0,
+      "cr": 5000,
+      "model": "opus-5",
+      "crBefore": 10000
+    },
+    {
+      "i": 5,
+      "t": "11:40",
+      "cause": "model switch",
+      "cw": 15000,
+      "cw1h": 15000,
+      "cw5m": 0,
+      "cr": 3000,
+      "model": "sonnet-5",
+      "crBefore": 5000
+    },
+    {
+      "i": 6,
+      "t": "11:46",
+      "cause": "compact",
+      "cw": 12000,
+      "cw1h": 12000,
+      "cw5m": 0,
+      "cr": 2000,
+      "model": "sonnet-5",
+      "crBefore": 3000
+    }
+  ],
+  "tools": {
+    "n": 1,
+    "bytes": 45,
+    "top": [
+      {
+        "name": "Read",
+        "size": 45
+      }
+    ]
+  },
+  "dedup": {
+    "records": 9,
+    "unique": 8
+  }
+}

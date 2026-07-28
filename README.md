@@ -34,7 +34,8 @@ is that this tool shows you why you hit a limit sooner than you expected.
 ```
 
 Requires `bash` and `jq`. `python3` is optional — it is only used by `--serve` for the local
-dashboard, and everything else works without it.
+dashboard (which binds to localhost only), and everything else works without it. Developed
+and tested on macOS and Linux; Windows is untested.
 
 Once installed, `tokenomics` is on the Bash tool's `PATH` inside a Claude Code session, so
 Claude can run `tokenomics --json` without knowing where the plugin lives. From your own
@@ -201,4 +202,7 @@ plugins/tokenomics/                  the plugin itself; everything below ships o
   hooks/hooks.json                   Stop-hook registration
   hooks/compact-nudge.sh             the compact nudge (everywhere, incl. desktop)
   docs/tokenomics-explained.md       long-form companion
+  tests/run.sh                       golden test for the measurement + CLI guards
 ```
+
+Run the tests with `bash plugins/tokenomics/tests/run.sh`.
