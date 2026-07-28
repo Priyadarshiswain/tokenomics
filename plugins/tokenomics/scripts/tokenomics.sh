@@ -40,7 +40,12 @@
 # Narrative companion: docs/tokenomics-explained.md
 set -uo pipefail
 
-MODE="bundle"; OUT=""; DIR=""; WATCH=0; SERVE=0; ARG=""; PROJECT=""; NSESS=6; ALLPROJ=0
+MODE="bundle"; OUT=""; DIR=""; WATCH=0; SERVE=0; ARG=""; PROJECT=""; NSESS=6; NSESS_SET=0; ALLPROJ=0
+# Value-taking flags must verify the value exists BEFORE `shift 2`: with one argument
+# left, bash's `shift 2` fails without shifting, and this loop has no `set -e` — the
+# same flag would be reprocessed forever.
+req() { [ -n "${2:-}" ] || { echo "tokenomics: $1 requires a value" >&2; exit 1; }; }
+num() { req "$@"; case "$2" in *[!0-9]*) echo "tokenomics: $1 expects a number, got '$2'" >&2; exit 1 ;; esac; }
 while [ $# -gt 0 ]; do
   case "$1" in
     --inline)   MODE="inline"; shift ;;
@@ -48,12 +53,12 @@ while [ $# -gt 0 ]; do
     --list)     MODE="list"; shift ;;
     --projects) MODE="projects"; shift ;;
     --all-projects) ALLPROJ=1; shift ;;
-    --project)  PROJECT="${2:-}"; shift 2 ;;
-    --sessions) NSESS="${2:-6}"; shift 2 ;;
-    -o)        OUT="${2:-}"; shift 2 ;;
-    -d)        DIR="${2:-}"; shift 2 ;;
-    --watch)   WATCH="${2:-30}"; shift 2 ;;
-    --serve)   SERVE="${2:-8899}"; shift 2 ;;
+    --project)  req "$@"; PROJECT="$2"; shift 2 ;;
+    --sessions) num "$@"; NSESS="$2"; NSESS_SET=1; shift 2 ;;
+    -o)        req "$@"; OUT="$2"; shift 2 ;;
+    -d)        req "$@"; DIR="$2"; shift 2 ;;
+    --watch)   num "$@"; WATCH="$2"; shift 2 ;;
+    --serve)   num "$@"; SERVE="$2"; shift 2 ;;
     -h|--help) sed -n '2,34p' "$0"; exit 0 ;;
     *)         ARG="$1"; shift ;;
   esac
@@ -97,14 +102,15 @@ resolve_transcript() {
 }
 
 # --projects: every project that has transcripts. Deliberately cheap — it reads only the
-# first line of each file for a date, never parsing whole transcripts, so it stays fast
-# even when a single session is hundreds of megabytes.
+# first few lines of each file for a date (the opening record does not always carry a
+# timestamp), never parsing whole transcripts, so it stays fast even when a single
+# session is hundreds of megabytes.
 if [ "$MODE" = "projects" ]; then
   printf '%5s %7s  %-10s %-10s  %s\n' "sess" "size" "oldest" "newest" "project"
   for d in "$PROJ_ROOT"/*/; do
     n=$(ls "$d"*.jsonl 2>/dev/null | wc -l | tr -d ' ')
     [ "${n:-0}" -gt 0 ] || continue
-    dates=$(for f in "$d"*.jsonl; do head -1 "$f" 2>/dev/null | jq -r '.timestamp // empty' 2>/dev/null; done | sort)
+    dates=$(for f in "$d"*.jsonl; do head -40 "$f" 2>/dev/null | jq -r 'select(.timestamp) | .timestamp' 2>/dev/null | head -1; done | sort)
     printf '%5s %7s  %-10s %-10s  %s\n' "$n" "$(du -sh "$d" 2>/dev/null | cut -f1)" \
       "$(printf '%s' "$dates" | head -1 | cut -c1-10)" \
       "$(printf '%s' "$dates" | tail -1 | cut -c1-10)" "$(basename "$d")"
@@ -115,12 +121,15 @@ fi
 # --list: sessions for the resolved project, newest first. --sessions N sets how many.
 if [ "$MODE" = "list" ]; then
   d=$(project_dir)
-  LIMIT=$NSESS; [ "$LIMIT" -le 6 ] && LIMIT=20   # a bare --list should show a useful page
+  # A bare --list should show a useful page; an explicit --sessions N means N, even a small N.
+  LIMIT=$NSESS; [ "$NSESS_SET" = 1 ] || LIMIT=20
   echo "project: $d"
   printf '%-10s %-17s %7s %12s  %s\n' "session" "started (UTC)" "calls" "tokens" "title"
   for t in $(ls -t "$d"/*.jsonl 2>/dev/null | head -"$LIMIT"); do
     jq -s -r --arg id "$(basename "$t" .jsonl)" '
-      ([ .[] | select(.message.usage != null) ] | group_by(.message.id) | map(.[-1])) as $u
+      # sort_by(.timestamp) matters: group_by reorders calls BY MESSAGE ID, so without it
+      # $u[0] is an arbitrary mid-session call and the "started" column shows its time.
+      ([ .[] | select(.message.usage != null) ] | group_by(.message.id) | map(.[-1]) | sort_by(.timestamp)) as $u
       | ([ .[] | select(.type=="custom-title") | .customTitle ] | last) as $ct
       | ([ .[] | select(.type=="ai-title")     | .aiTitle     ] | last) as $at
       | ([ .[] | .slug // empty ] | last) as $slug
@@ -802,10 +811,12 @@ async function loadIndex() {
     const primaryGroup = (list.find(s => s.primary) || {}).project;
     const ordered = [...groups.entries()].sort((a, b) =>
       (b[0] === primaryGroup) - (a[0] === primaryGroup) || a[0].localeCompare(b[0]));
+    /* Titles are AI-generated free text — esc() them like everything else rendered,
+       or one title containing < or & breaks (or injects into) the picker markup. */
     sess.innerHTML = ordered.map(([g, ss]) =>
-      `<optgroup label="${g} (${ss.length})">` +
+      `<optgroup label="${esc(g)} (${ss.length})">` +
       ss.sort((a,b) => b.started.localeCompare(a.started)).map(s =>
-        `<option value="${s.id}"${s.primary?" selected":""}>${s.started.slice(0,10)} · ${s.title}` +
+        `<option value="${esc(s.id)}"${s.primary?" selected":""}>${s.started.slice(0,10)} · ${esc(s.title)}` +
         ` (${nf(s.calls)} calls, ${nf(Math.round(s.tokens/1000))}k)</option>`).join("") +
       `</optgroup>`).join("");
     const p = list.find(s => s.primary) || list[0];
@@ -873,8 +884,16 @@ LIVE
 
 if [ "$SERVE" != "0" ]; then
   if command -v python3 >/dev/null; then
-    ( cd "$DIR" && python3 -m http.server "$SERVE" >/dev/null 2>&1 ) &
-    echo "serving  http://localhost:$SERVE/  (pid $!)"
+    # Loopback only: transcripts are private, and http.server's default is EVERY
+    # interface — that would offer this machine's session data to the whole LAN.
+    ( cd "$DIR" && exec python3 -m http.server --bind 127.0.0.1 "$SERVE" >/dev/null 2>&1 ) &
+    SPID=$!
+    sleep 1   # a bind failure (port already taken) exits immediately; success keeps running
+    if kill -0 "$SPID" 2>/dev/null; then
+      echo "serving  http://localhost:$SERVE/  (pid $SPID)"
+    else
+      echo "tokenomics: could not serve on port $SERVE — already in use? The bundle at $DIR is still valid; serve it yourself or pick another port with --serve" >&2
+    fi
   else
     echo "tokenomics: python3 not found — serve $DIR yourself" >&2
   fi

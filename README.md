@@ -78,7 +78,8 @@ ls ~/.claude/plugins/marketplaces/*/plugins/*/statusline/statusline.sh
 Opus 5 · call  in 38  ↻41.2k  ✎2.1k  out 740
          sess  in 2.0k  ↻3.9M  ✎238.8k  out 55.2k
          ctx  ■■■■■■■■■■■■··  91%  183.0k/200.0k
-         ⚠ /compact now — ctx 91%; measured cut ≈67%
+         ⚠ /compact now — 91% of window · ~122.6k off every later call · long context
+                          also makes earlier detail easier to lose
 ```
 
 `↻` cache read · `✎` cache write. Row 1 is the last call, row 2 is the session to date.
