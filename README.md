@@ -77,11 +77,19 @@ ls ~/.claude/plugins/marketplaces/*/plugins/*/statusline/statusline.sh
 ```
 Opus 5 · call  in 38  ↻41.2k  ✎2.1k  out 740
          sess  in 2.0k  ↻3.9M  ✎238.8k  out 55.2k
+         ctx  ▓▓▓▓▓▓▓▓▓▓▓▓░░  91%  183.0k/200.0k
          ⚠ /compact now — ctx 91%; measured cut ≈67%
 ```
 
 `↻` cache read · `✎` cache write. Row 1 is the last call, row 2 is the session to date.
-The third row appears only at ≥70% (amber) and ≥85% (red) context.
+
+Row 3 is the context window — the only "how much room is left" figure here; everything
+above it is about cost. It is green below 70%, amber to 85%, red above. Claude Code does not
+otherwise surface this in the terminal. The row is omitted rather than shown as `0%` when
+`used_percentage` is null, which it is before the first API call and again after a `/compact`
+until the next one repopulates it.
+
+Row 4, the compact nudge, appears only at ≥70% and ≥85%.
 
 Session totals are not in the status-line payload, so the script reads the transcript
 **incrementally** by byte offset, keeping per-session state under

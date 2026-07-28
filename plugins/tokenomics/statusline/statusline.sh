@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # statusline-tokenomics.sh — the four token classes Claude Code does NOT show you,
-# plus a compact nudge. Context % is deliberately omitted: the UI already has it.
+# a context-window bar, and a compact nudge.
+#
+# The bar was originally omitted on the assumption that the UI already showed it. It
+# does not, in the terminal, so it lives here — and it is the one number that answers
+# "how much room is left", which the token classes deliberately do not.
 #
 # Verified against claude-code 2.1.220 status-line payload (function yRS).
 #   .context_window.current_usage  = the LAST call only (Ahr walks back to one message)
@@ -14,6 +18,8 @@ g() { printf '%s' "$J" | jq -r "$1 // empty" 2>/dev/null; }
 
 MODEL=$(g '.model.display_name')
 USED=$(g '.context_window.used_percentage')
+CTXMAX=$(g '.context_window.context_window_size')
+CTXIN=$(g '.context_window.total_input_tokens')
 L_IN=$(g '.context_window.current_usage.input_tokens')
 L_OUT=$(g '.context_window.current_usage.output_tokens')
 L_CR=$(g '.context_window.current_usage.cache_read_input_tokens')
@@ -138,8 +144,28 @@ if [ -n "$TOT" ]; then
   # write split, which is what a correct version would need. Parked, not lost.
 fi
 
-# ---- line 3: the compact nudge -------------------------------------------------
+# ---- line 3: the context window ------------------------------------------------
+# The only "how much room is left" number here; everything above is about cost.
+# used_percentage is null before the first API call and again after a /compact until
+# the next one, so the row is skipped rather than drawn as a misleading 0%.
 UP=${USED%%.*}; UP=${UP:-0}
+if [ -n "$USED" ]; then
+  BW=14
+  FILL=$(( UP * BW / 100 )); [ "$FILL" -gt "$BW" ] && FILL=$BW
+  [ "$FILL" -lt 0 ] && FILL=0
+  EMPTY=$(( BW - FILL ))
+  BAR=""
+  [ "$FILL"  -gt 0 ] && printf -v S "%${FILL}s"  && BAR="${S// /▓}"
+  [ "$EMPTY" -gt 0 ] && printf -v S "%${EMPTY}s" && BAR="${BAR}${S// /░}"
+  if   [ "$UP" -ge 85 ]; then C=$RED
+  elif [ "$UP" -ge 70 ]; then C=$AMB
+  else C=$GRN; fi
+  OUT+=$'\n'"${PAD}${DIM}ctx ${R} ${C}${BAR}${R} ${C}${UP}%${R}"
+  [ -n "$CTXIN" ] && [ -n "$CTXMAX" ] && \
+    OUT+="${DIM}  $(human "$CTXIN")/$(human "$CTXMAX")${R}"
+fi
+
+# ---- line 4: the compact nudge -------------------------------------------------
 if [ "$UP" -ge 85 ]; then
   OUT+=$'\n'"${PAD}${RED}⚠ /compact now${R}${DIM} — ctx ${UP}%; measured cut ≈67%, pays back in ~10 calls${R}"
 elif [ "$UP" -ge 70 ]; then
