@@ -35,10 +35,15 @@ is that this tool shows you why you hit a limit sooner than you expected.
 Requires `bash` and `jq`. `python3` is optional — it is only used by `--serve` for the local
 dashboard, and everything else works without it.
 
+Once installed, `tokenomics` is on the Bash tool's `PATH` inside a Claude Code session, so
+Claude can run `tokenomics --json` without knowing where the plugin lives. From your own
+terminal, call the script by path (see below).
+
 ## The status line
 
-Not installable by a plugin — `statusLine` is a user setting, so this is one manual step.
-Installing via the marketplace above puts the plugin here:
+`statusLine` is a user setting and a plugin cannot ship one — plugin `settings.json`
+currently honours only the `agent` and `subagentStatusLine` keys — so this is one manual
+step. Installing via the marketplace above puts the plugin here:
 
 ```bash
 claude config set --global statusLine '{"type":"command","command":"bash ~/.claude/plugins/marketplaces/tokenomics/statusline/statusline.sh","refreshInterval":5,"padding":0}'
@@ -68,6 +73,9 @@ Session totals are not in the status-line payload, so the script reads the trans
 the cap is not counted.
 
 ## The measure tool
+
+From a clone, call it by path. Inside a Claude Code session with the plugin installed, the
+same arguments work as a bare `tokenomics` command.
 
 ```bash
 bash scripts/tokenomics.sh                       # newest session of the current project
@@ -99,6 +107,7 @@ previous contribution when a newer version of the same id arrives.
 commands/tokenomics.md         the slash command
 skills/tokenomics/SKILL.md     model-triggered mental model
 scripts/tokenomics.sh          measure + render
+bin/tokenomics                 wrapper, so it is a bare command on the Bash tool's PATH
 statusline/statusline.sh       live status line
 docs/tokenomics-explained.md   long-form companion
 ```

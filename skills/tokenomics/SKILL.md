@@ -102,8 +102,12 @@ Other things worth knowing when reading a transcript directly:
 
 - `/tokenomics` — measure this session and summarise it; `--list`, `--projects`,
   `--dashboard`, `--artifact`.
-- `scripts/tokenomics.sh` — measure any transcript, render HTML. `--list`, `--projects`,
-  `--watch N --serve PORT`, `--inline -o page.html`, `--json`.
+- `tokenomics` — measure any transcript, render HTML. `--list`, `--projects`,
+  `--watch N --serve PORT`, `--inline -o page.html`, `--json`. Available as a bare command
+  on the Bash tool's PATH when the plugin is enabled; otherwise call
+  `scripts/tokenomics.sh` by path. Prefer `--json` and read the numbers — do not dump a
+  whole transcript or the full JSON into the conversation, which is exactly the mistake
+  this skill exists to prevent.
 - `statusline/statusline.sh` — live per-call and per-session token counts plus a compact
   nudge, in the Claude Code status line.
 - `docs/tokenomics-explained.md` — the long-form companion: the rate card, rebuild

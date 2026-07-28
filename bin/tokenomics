@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# tokenomics — thin wrapper so the measure tool is invokable as a bare command.
+#
+# Claude Code puts an enabled plugin's bin/ on the Bash tool's PATH, which makes
+# `tokenomics --list` work inside a session without anyone needing to know where the
+# plugin was installed. Every argument is forwarded to scripts/tokenomics.sh untouched.
+set -uo pipefail
+
+root="${CLAUDE_PLUGIN_ROOT:-}"
+
+if [ -z "$root" ]; then
+  # No plugin root in the environment (run directly from a clone, or via a symlink on
+  # PATH). Resolve this script's real location, then step up out of bin/. Plain readlink
+  # is used rather than `readlink -f`, which is GNU-only.
+  self="$0"
+  while [ -L "$self" ]; do
+    link=$(readlink "$self")
+    case "$link" in
+      /*) self="$link" ;;
+       *) self="$(dirname "$self")/$link" ;;
+    esac
+  done
+  root="$(cd "$(dirname "$self")/.." && pwd)"
+fi
+
+target="$root/scripts/tokenomics.sh"
+[ -f "$target" ] || { echo "tokenomics: cannot find $target" >&2; exit 1; }
+
+exec bash "$target" "$@"
