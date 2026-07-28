@@ -91,7 +91,8 @@ until the next one repopulates it.
 
 The bar is 14 cells (≈7% each); set `TOKENOMICS_BAR_WIDTH` to change it.
 
-Row 4, the compact nudge, appears only at ≥70% and ≥85%.
+Row 4 is the compact nudge, described below. In the status line it can speak from either
+argument, because this is the one surface that knows both.
 
 Session totals are not in the status-line payload, so the script reads the transcript
 **incrementally** by byte offset, keeping per-session state under
@@ -102,43 +103,60 @@ the cap is not counted.
 
 ## The compact nudge
 
-The status line's third row, delivered as a hook so it works where the status line cannot —
-desktop included. Installed with the plugin; **no setup step**.
+Two different reasons to compact, kept separate because neither implies the other:
+
+| Tier | Triggers on | Says | Tone |
+|---|---|---|---|
+| **cost** | context ≥ **150k tokens**, any window | what a compact would save per call | informational |
+| **capacity** | context ≥ **70%** of the window | that, plus room and recall | urgent |
+
+A 200k context on a 1M window is expensive but perfectly safe. 150k on a 200k window is
+both. Collapsing these into one number makes the tool wrong in one of those cases.
 
 ```
-◆ context 124k — /compact soon. It repays over the calls that follow, so it is worth
-                 doing while calls remain.
-⚠ context 186k — /compact now. Every call re-sends all of it, and a turn-boundary
-                 rebuild re-files it at 2×.
+◆ /compact would cut ~123.3k from every later call (measured ≈67%)
+
+◆ /compact soon — 76% of window · ~101.8k off every later call · long context also
+                  makes earlier detail easier to lose
+⚠ /compact now  — 91% of window · ~122.6k off every later call · long context also
+                  makes earlier detail easier to lose
 ```
 
-It runs on `Stop` — when Claude finishes a turn — and **speaks only when a threshold is
-crossed**, never on every turn. A compact drops context back down and re-arms it, so it
-warns again if context climbs a second time. A tool about wasted tokens should not itself
-be noise.
+**The status line shows both tiers.** It is the only surface handed
+`context_window.context_window_size`, so it is the only one that can compute a percentage.
+
+**The hook shows the cost tier only**, and runs everywhere the status line cannot —
+desktop included. It ships with the plugin, so there is **no setup step**. It fires on
+`Stop`, when Claude finishes a turn.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `TOKENOMICS_NUDGE_SOON` | `120000` | context tokens for the amber nudge |
-| `TOKENOMICS_NUDGE_NOW` | `180000` | context tokens for the red one |
-| `TOKENOMICS_NUDGE` | `on` | set to `off` to silence it entirely |
+| `TOKENOMICS_NUDGE_AT` | `150000` | context tokens for the cost tier |
+| `TOKENOMICS_NUDGE` | `on` | set to `off` to silence the hook |
+| `TOKENOMICS_NUDGE_WINDOW` | `262144` | bytes of transcript tail the hook reads |
 
-**Thresholds are absolute token counts, not a percentage of the context window** — on
-purpose, for two reasons.
+The capacity thresholds (70%/85%) are not configurable; they match the bar's colours, so
+the row changes colour on the same turn the warning appears rather than contradicting it.
 
-*It isn't available.* The status line is handed `context_window.context_window_size`; hooks
-are not, and it is not in the transcript either. Any percentage here would rest on a
-hardcoded constant that is wrong for someone — a live `opus-5` session measured here sat at
-234k, which a 200k assumption would call 117%.
+**Why the hook cannot do the capacity tier.** No hook payload carries the window size and
+it is not in the transcript. The two ways around that are both worse than doing without: a
+hardcoded constant is wrong for someone — a live `opus-5` session measured here sat at 234k,
+which a 200k assumption would call 117% — and inferring the window from observed usage fails
+in the dangerous direction, shouting about a fresh 1M-window session at 140k by assuming it
+is at 70% when it is really at 14%.
 
-*It asks the wrong question.* Percentage answers "am I running out of room", which the UI
-already tracks. Rent is what this plugin is about, and 200k of context costs the same per
-call whether the window is 250k or 1M. On an extended (~1M) window a 70% rule would not fire
-until 700k — long after the cost became the point.
+**On the recall wording.** Long contexts making earlier detail easier to lose is a tendency,
+not a cliff, and nothing special happens at exactly 70%. That line is deliberately hedged and
+names what degrades rather than implying the model is broadly worse. It is also the only
+claim in this plugin not measured from a transcript.
 
-Cost: it reads a bounded 256 KB tail of the transcript rather than the whole file —
-**0.04s on a 253 MB transcript**. Every failure path exits silently, so a missing `jq`,
-an unreadable transcript, or malformed input can never disrupt a turn.
+**Both tiers speak only when a threshold is crossed**, never on every turn, and a compact
+re-arms them so they warn again if context climbs back. A tool about wasted tokens should
+not itself be noise.
+
+The hook reads a bounded 256 KB tail rather than the whole file — **0.04s on a 253 MB
+transcript**. Every failure path exits silently, so a missing `jq`, an unreadable transcript,
+or malformed input can never disrupt a turn.
 
 ## The measure tool
 

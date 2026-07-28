@@ -108,8 +108,16 @@ Other things worth knowing when reading a transcript directly:
   `scripts/tokenomics.sh` by path. Prefer `--json` and read the numbers — do not dump a
   whole transcript or the full JSON into the conversation, which is exactly the mistake
   this skill exists to prevent.
-- `statusline/statusline.sh` — live per-call and per-session token counts plus a compact
-  nudge, in the Claude Code status line.
+- `statusline/statusline.sh` — live per-call and per-session token counts, a context-window
+  bar, and the compact nudge. Terminal only: the desktop app has no surface for a status
+  line, and a plugin cannot ship one anyway (plugin `settings.json` honours only `agent`
+  and `subagentStatusLine`), so it is a manual `~/.claude/settings.json` step.
+- `hooks/compact-nudge.sh` — a `Stop` hook carrying the cost half of the nudge everywhere,
+  desktop included. Two tiers exist: **cost** (context ≥150k, any window) and **capacity**
+  (≥70% of the window). Only the status line can do the second, because the window size is
+  given to status lines and not to hooks. If a user asks why a green context bar appears
+  alongside a compact suggestion, that is the reason and it is not a bug: plenty of room,
+  still expensive per call.
 - `docs/tokenomics-explained.md` — the long-form companion: the rate card, rebuild
   arithmetic, and compact break-even worked through end to end.
 

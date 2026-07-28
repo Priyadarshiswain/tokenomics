@@ -337,8 +337,16 @@ message's previous contribution when a newer version of the same id arrives.
 |---|---|
 | `/tokenomics` | measure a session, summarise it, or render an HTML report |
 | `scripts/tokenomics.sh` | the measure + render tool |
-| `statusline/statusline.sh` | live per-call and per-session counts, plus a compact nudge |
+| `statusline/statusline.sh` | live per-call and per-session counts, a context bar, and the compact nudge — terminal only |
+| `hooks/compact-nudge.sh` | the cost half of that nudge as a `Stop` hook, so it also reaches the desktop app |
 | `skills/tokenomics/SKILL.md` | the model reaches for this mental model unprompted |
+
+The nudge splits along the same line this document does. **Cost** — context ≥150k, any
+window — is the rent argument from §4 and §6: what a compact would take off every later
+call. **Capacity** — ≥70% of the window — is the separate question of room running out,
+and it is the only place this plugin mentions long context making earlier detail easier to
+lose. The status line can make both arguments; a hook is never handed the window size, so
+it makes the first one only.
 
 ```bash
 bash scripts/tokenomics.sh                            # newest session of the current project

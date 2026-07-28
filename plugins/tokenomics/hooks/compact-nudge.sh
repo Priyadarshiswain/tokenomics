@@ -43,23 +43,25 @@ CTX=$(printf '%s' "$LAST" | jq -r '
 case "$CTX" in ''|*[!0-9]*) exit 0 ;; esac
 [ "$CTX" -gt 0 ] || exit 0
 
-# ---- thresholds are ABSOLUTE, deliberately --------------------------------------
-# Not a percentage of the context window. Two reasons. The window size is not given to
-# hooks — the status line receives it as .context_window.context_window_size, but no
-# hook payload carries it and it is not in the transcript either, so a percentage here
-# would rest on a hardcoded constant that is wrong for somebody. Measured: a live opus-5
-# session sat at 234k, which a 200k assumption would have called 117%. That session was
-# on an extended (~1M) window, where a 70% rule would not fire until 700k — long after
-# the rent became the point.
-# More importantly, percentage answers "am I running out of room", which the UI already
-# tracks. Rent is what this plugin is about, and 200k of context costs the same per
-# call whether the window is 250k or 1M.
-SOON=${TOKENOMICS_NUDGE_SOON:-120000}
-NOW=${TOKENOMICS_NUDGE_NOW:-180000}
+# ---- one tier, absolute, COST only ----------------------------------------------
+# The status line has a second and more urgent tier keyed on % of the context window:
+# room left, plus the point where a long context starts costing recall as well as
+# tokens. That tier cannot exist here — the status line is handed
+# .context_window.context_window_size, but no hook payload carries it and it is not in
+# the transcript either.
+#
+# The alternatives were both worse than doing without. A hardcoded constant is wrong for
+# somebody: a live opus-5 session measured here sat at 234k, which a 200k assumption
+# would have called 117%. Inferring the window from observed usage false-alarms in the
+# dangerous direction — at 140k on a fresh 1M-window session it would assume 200k, call
+# it 70%, and shout about a session sitting at 14%.
+#
+# So this makes the one argument it can make honestly: rent. 150k of context costs the
+# same on every call whether the window is 200k or 1M.
+NUDGE_AT=${TOKENOMICS_NUDGE_AT:-150000}
 
 LEVEL=0
-[ "$CTX" -ge "$SOON" ] && LEVEL=1
-[ "$CTX" -ge "$NOW" ]  && LEVEL=2
+[ "$CTX" -ge "$NUDGE_AT" ] && LEVEL=1
 
 # ---- speak only on a crossing --------------------------------------------------
 # State is per transcript, so /clear starts clean. Storing the level (not a flag) is
@@ -79,10 +81,10 @@ human() { local n=${1:-0}
   elif [ "$n" -ge 1000 ];    then awk -v n="$n" 'BEGIN{printf "%.0fk", n/1e3}'
   else printf '%s' "$n"; fi; }
 
-if [ "$LEVEL" -ge 2 ]; then
-  MSG="⚠ context $(human "$CTX") — /compact now. Every call re-sends all of it, and a turn-boundary rebuild re-files it at 2×."
-else
-  MSG="◆ context $(human "$CTX") — /compact soon. It repays over the calls that follow, so it is worth doing while calls remain."
-fi
+# The saving is the persuasive part, so quote it rather than just flagging size. The 67%
+# figure is the one compact measured in docs/tokenomics-explained.md (107,585 → 35,481),
+# labelled as measured so it does not read as a guarantee.
+CUT=$(( CTX * 67 / 100 ))
+MSG="◆ context $(human "$CTX") — a /compact here would cut about $(human "$CUT") from every call that follows (measured cut ≈67%). It repays over the calls remaining, so it is worth doing while there are some."
 
 jq -n --arg m "$MSG" '{systemMessage: $m}'

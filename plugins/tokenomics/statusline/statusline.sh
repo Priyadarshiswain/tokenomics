@@ -171,10 +171,21 @@ if [ -n "$USED" ]; then
 fi
 
 # ---- line 4: the compact nudge -------------------------------------------------
+# Two separate arguments, deliberately not merged:
+#   COST     — absolute tokens. Rent you pay on every call. True at any window size.
+#   CAPACITY — % of window. Room left, and the point where a long context starts
+#              costing recall as well as tokens.
+# A 200k context on a 1M window is expensive but safe; 150k on a 200k window is both.
+# Saving is quoted from the one compact measured in docs/: 107,585 → 35,481, a ~67% cut.
+CUT=0; [ -n "$CTXIN" ] && CUT=$(( CTXIN * 67 / 100 ))
+NUDGE_AT=${TOKENOMICS_NUDGE_AT:-150000}
+
 if [ "$UP" -ge 85 ]; then
-  OUT+=$'\n'"${PAD}${RED}⚠ /compact now${R}${DIM} — ctx ${UP}%; measured cut ≈67%, pays back in ~10 calls${R}"
+  OUT+=$'\n'"${PAD}${RED}⚠ /compact now${R}${DIM} — ${UP}% of window · ~$(human "$CUT") off every later call · long context also makes earlier detail easier to lose${R}"
 elif [ "$UP" -ge 70 ]; then
-  OUT+=$'\n'"${PAD}${AMB}◆ /compact soon${R}${DIM} — ctx ${UP}%; cheaper than a turn-boundary rebuild${R}"
+  OUT+=$'\n'"${PAD}${AMB}◆ /compact soon${R}${DIM} — ${UP}% of window · ~$(human "$CUT") off every later call · long context also makes earlier detail easier to lose${R}"
+elif [ -n "$CTXIN" ] && [ "$CTXIN" -ge "$NUDGE_AT" ]; then
+  OUT+=$'\n'"${PAD}${DIM}◆ /compact would cut ~$(human "$CUT") from every later call (measured ≈67%)${R}"
 fi
 
 printf '%b\n' "$OUT"
