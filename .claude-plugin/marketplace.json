@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "tokenomics",
-  "description": "Session tokenomics for Claude Code",
+  "name": "pd-claude-plugins",
+  "description": "Claude Code plugins by Priyadarshi Swain",
   "owner": { "name": "Priyadarshi Swain" },
   "plugins": [
     {

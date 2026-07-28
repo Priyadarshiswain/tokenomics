@@ -29,7 +29,7 @@ is that this tool shows you why you hit a limit sooner than you expected.
 
 ```bash
 /plugin marketplace add Priyadarshiswain/tokenomics
-/plugin install tokenomics@tokenomics
+/plugin install tokenomics@pd-claude-plugins
 ```
 
 Requires `bash` and `jq`. `python3` is optional — it is only used by `--serve` for the local
@@ -46,7 +46,7 @@ currently honours only the `agent` and `subagentStatusLine` keys — so this is 
 step. Installing via the marketplace above puts the plugin here:
 
 ```bash
-claude config set --global statusLine '{"type":"command","command":"bash ~/.claude/plugins/marketplaces/tokenomics/statusline/statusline.sh","refreshInterval":5,"padding":0}'
+claude config set --global statusLine '{"type":"command","command":"bash ~/.claude/plugins/marketplaces/pd-claude-plugins/statusline/statusline.sh","refreshInterval":5,"padding":0}'
 ```
 
 If you cloned the repo manually instead, point that path at your own checkout. To confirm
