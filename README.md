@@ -23,6 +23,7 @@ is that this tool shows you why you hit a limit sooner than you expected.
 |---|---|
 | `/tokenomics` | measure a session, summarise it, or render an HTML report |
 | status line | live per-call and per-session token counts, plus a compact nudge — **terminal only** |
+| compact nudge | a `Stop` hook that speaks once when context gets expensive — works everywhere, including desktop |
 | skill | Claude reaches for the mental model on its own when you ask why a session feels heavy |
 
 ## Install
@@ -89,6 +90,40 @@ Session totals are not in the status-line payload, so the script reads the trans
 (`TOKENOMICS_COLD_CAP`); when capped the row reads `sess~` — the tilde means history before
 the cap is not counted.
 
+## The compact nudge
+
+The status line's third row, delivered as a hook so it works where the status line cannot —
+desktop included. Installed with the plugin; **no setup step**.
+
+```
+◆ context 124k — /compact soon. It repays over the calls that follow, so it is worth
+                 doing while calls remain.
+⚠ context 186k — /compact now. Every call re-sends all of it, and a turn-boundary
+                 rebuild re-files it at 2×.
+```
+
+It runs on `Stop` — when Claude finishes a turn — and **speaks only when a threshold is
+crossed**, never on every turn. A compact drops context back down and re-arms it, so it
+warns again if context climbs a second time. A tool about wasted tokens should not itself
+be noise.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `TOKENOMICS_NUDGE_SOON` | `120000` | context tokens for the amber nudge |
+| `TOKENOMICS_NUDGE_NOW` | `180000` | context tokens for the red one |
+| `TOKENOMICS_NUDGE` | `on` | set to `off` to silence it entirely |
+
+**Thresholds are absolute token counts, not a percentage of the context window** — on
+purpose. The window size appears in neither the hook payload nor the transcript and differs
+by model, so any percentage rests on a constant that is wrong for someone; a live `opus-5`
+session measured here sat at 234k, which a 200k assumption would call 117%. And percentage
+answers "am I running out of room", which the UI already tracks. Rent is what this plugin is
+about, and 200k of context costs the same per call whether the window is 250k or 1M.
+
+Cost: it reads a bounded 256 KB tail of the transcript rather than the whole file —
+**0.04s on a 253 MB transcript**. Every failure path exits silently, so a missing `jq`,
+an unreadable transcript, or malformed input can never disrupt a turn.
+
 ## The measure tool
 
 From a clone, call it by path. Inside a Claude Code session with the plugin installed, the
@@ -127,6 +162,8 @@ plugins/tokenomics/                  the plugin itself; everything below ships o
   skills/tokenomics/SKILL.md         model-triggered mental model
   scripts/tokenomics.sh              measure + render
   bin/tokenomics                     wrapper, so it is a bare command on the Bash tool's PATH
-  statusline/statusline.sh           live status line
+  statusline/statusline.sh           live status line (terminal)
+  hooks/hooks.json                   Stop-hook registration
+  hooks/compact-nudge.sh             the compact nudge (everywhere, incl. desktop)
   docs/tokenomics-explained.md       long-form companion
 ```

@@ -1,0 +1,16 @@
+{
+  "description": "Warn once when session context crosses the levels where a /compact starts paying for itself. Works in the desktop app, where the status line has no surface to render on.",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/compact-nudge.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
