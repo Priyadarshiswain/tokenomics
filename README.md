@@ -46,14 +46,14 @@ currently honours only the `agent` and `subagentStatusLine` keys — so this is 
 step. Installing via the marketplace above puts the plugin here:
 
 ```bash
-claude config set --global statusLine '{"type":"command","command":"bash ~/.claude/plugins/marketplaces/pd-claude-plugins/statusline/statusline.sh","refreshInterval":5,"padding":0}'
+claude config set --global statusLine '{"type":"command","command":"bash ~/.claude/plugins/marketplaces/pd-claude-plugins/plugins/tokenomics/statusline/statusline.sh","refreshInterval":5,"padding":0}'
 ```
 
 If you cloned the repo manually instead, point that path at your own checkout. To confirm
 where it actually landed:
 
 ```bash
-ls ~/.claude/plugins/marketplaces/*/statusline/statusline.sh
+ls ~/.claude/plugins/marketplaces/*/plugins/*/statusline/statusline.sh
 ```
 
 ```
@@ -78,6 +78,7 @@ From a clone, call it by path. Inside a Claude Code session with the plugin inst
 same arguments work as a bare `tokenomics` command.
 
 ```bash
+cd plugins/tokenomics
 bash scripts/tokenomics.sh                       # newest session of the current project
 bash scripts/tokenomics.sh --list                # browse sessions
 bash scripts/tokenomics.sh --projects            # every project, sizes, date ranges
@@ -102,12 +103,13 @@ previous contribution when a newer version of the same id arrives.
 ## Layout
 
 ```
-.claude-plugin/plugin.json     manifest
-.claude-plugin/marketplace.json  so the repo is directly installable
-commands/tokenomics.md         the slash command
-skills/tokenomics/SKILL.md     model-triggered mental model
-scripts/tokenomics.sh          measure + render
-bin/tokenomics                 wrapper, so it is a bare command on the Bash tool's PATH
-statusline/statusline.sh       live status line
-docs/tokenomics-explained.md   long-form companion
+.claude-plugin/marketplace.json      the catalog — what this repo offers
+plugins/tokenomics/                  the plugin itself; everything below ships on install
+  .claude-plugin/plugin.json         manifest
+  commands/tokenomics.md             the slash command
+  skills/tokenomics/SKILL.md         model-triggered mental model
+  scripts/tokenomics.sh              measure + render
+  bin/tokenomics                     wrapper, so it is a bare command on the Bash tool's PATH
+  statusline/statusline.sh           live status line
+  docs/tokenomics-explained.md       long-form companion
 ```

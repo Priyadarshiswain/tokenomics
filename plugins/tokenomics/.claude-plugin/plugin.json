@@ -1,6 +1,5 @@
 {
   "name": "tokenomics",
-  "version": "0.1.0",
   "description": "Measure where a Claude Code session's tokens and context actually go, per call and per session, as an HTML report or a live status line. Token counts only, no pricing.",
   "keywords": ["tokens", "context", "cache", "transcript", "statusline", "analysis"],
   "author": { "name": "Priyadarshi Swain" }
