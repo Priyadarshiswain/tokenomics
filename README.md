@@ -43,14 +43,26 @@ terminal, call the script by path (see below).
 
 `statusLine` is a user setting and a plugin cannot ship one — plugin `settings.json`
 currently honours only the `agent` and `subagentStatusLine` keys — so this is one manual
-step. Installing via the marketplace above puts the plugin here:
+step. Add a `statusLine` block to `~/.claude/settings.json`:
 
-```bash
-claude config set --global statusLine '{"type":"command","command":"bash ~/.claude/plugins/marketplaces/pd-claude-plugins/plugins/tokenomics/statusline/statusline.sh","refreshInterval":5,"padding":0}'
+```json
+"statusLine": {
+  "type": "command",
+  "command": "bash ~/.claude/plugins/marketplaces/pd-claude-plugins/plugins/tokenomics/statusline/statusline.sh",
+  "refreshInterval": 5,
+  "padding": 0
+}
 ```
 
-If you cloned the repo manually instead, point that path at your own checkout. To confirm
-where it actually landed:
+Or merge it in without opening an editor:
+
+```bash
+jq '.statusLine = {"type":"command","command":"bash ~/.claude/plugins/marketplaces/pd-claude-plugins/plugins/tokenomics/statusline/statusline.sh","refreshInterval":5,"padding":0}' ~/.claude/settings.json > ~/.claude/settings.json.new && mv ~/.claude/settings.json.new ~/.claude/settings.json
+```
+
+Note the path points at `marketplaces/` — the marketplace clone, which updates in place —
+rather than `cache/<sha>/`, which gets a new directory on every release. If you cloned the
+repo manually, point it at your own checkout instead. To confirm where it landed:
 
 ```bash
 ls ~/.claude/plugins/marketplaces/*/plugins/*/statusline/statusline.sh
