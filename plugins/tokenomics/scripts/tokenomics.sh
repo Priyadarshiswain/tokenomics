@@ -1001,15 +1001,36 @@ LIVE
 
 if [ "$SERVE" != "0" ]; then
   if command -v python3 >/dev/null; then
-    # Loopback only: transcripts are private, and http.server's default is EVERY
-    # interface — that would offer this machine's session data to the whole LAN.
-    ( cd "$DIR" && exec python3 -m http.server --bind 127.0.0.1 "$SERVE" >/dev/null 2>&1 ) &
-    SPID=$!
-    sleep 1   # a bind failure (port already taken) exits immediately; success keeps running
-    if kill -0 "$SPID" 2>/dev/null; then
-      echo "serving  http://localhost:$SERVE/  (pid $SPID)"
+    # Probe BOTH loopback families before binding. We bind 127.0.0.1, so a stale
+    # server on ::1 (or an IPv6 wildcard) doesn't collide — both binds succeed,
+    # yet browsers resolve localhost to ::1 first and silently get the stale data.
+    if python3 - "$SERVE" <<'PY'
+import socket, sys
+port = int(sys.argv[1])
+for fam, addr in ((socket.AF_INET, "127.0.0.1"), (socket.AF_INET6, "::1")):
+    try:
+        s = socket.socket(fam, socket.SOCK_STREAM)
+        s.settimeout(0.5)
+        s.connect((addr, port))
+        s.close()
+        sys.exit(0)
+    except OSError:
+        pass
+sys.exit(1)
+PY
+    then
+      echo "tokenomics: something is already answering on port $SERVE — likely a dashboard from an earlier run. Stop it first (lsof -nP -iTCP:$SERVE -sTCP:LISTEN) or pick another port with --serve. The bundle at $DIR is still valid." >&2
     else
-      echo "tokenomics: could not serve on port $SERVE — already in use? The bundle at $DIR is still valid; serve it yourself or pick another port with --serve" >&2
+      # Loopback only: transcripts are private, and http.server's default is EVERY
+      # interface — that would offer this machine's session data to the whole LAN.
+      ( cd "$DIR" && exec python3 -m http.server --bind 127.0.0.1 "$SERVE" >/dev/null 2>&1 ) &
+      SPID=$!
+      sleep 1   # a bind failure (port already taken) exits immediately; success keeps running
+      if kill -0 "$SPID" 2>/dev/null; then
+        echo "serving  http://localhost:$SERVE/  (pid $SPID)"
+      else
+        echo "tokenomics: could not serve on port $SERVE — already in use? The bundle at $DIR is still valid; serve it yourself or pick another port with --serve" >&2
+      fi
     fi
   else
     echo "tokenomics: python3 not found — serve $DIR yourself" >&2
