@@ -157,10 +157,26 @@ fi
 
 # ---- line 3: the context window ------------------------------------------------
 # The only "how much room is left" number here; everything above is about cost.
-# used_percentage is null before the first API call and again after a /compact until
-# the next one, so the row is skipped rather than drawn as a misleading 0%.
-UP=${USED%%.*}; UP=${UP:-0}
+#
+# Derive rather than depend. used_percentage is documented as possibly null early in a
+# session, and an earlier version simply skipped the row when it was — which showed up
+# as the bar silently not existing, indistinguishable from a broken plugin. Everything
+# needed to compute it is in the same payload, so fall back through what is present:
+#   1. used_percentage            — pre-calculated, preferred
+#   2. total_input_tokens         — context tokens, from the last response
+#   3. the last call's own usage  — always there once a call has happened
+# Only when no window size is known at all is the row genuinely undrawable.
+CTXNOW=$CTXIN
+[ -n "$CTXNOW" ] || CTXNOW=$(( ${L_IN:-0} + ${L_CR:-0} + ${L_CW:-0} ))
+
+UP=""
 if [ -n "$USED" ]; then
+  UP=${USED%%.*}
+elif [ "${CTXMAX:-0}" -gt 0 ] && [ "${CTXNOW:-0}" -gt 0 ]; then
+  UP=$(( CTXNOW * 100 / CTXMAX ))
+fi
+
+if [ -n "$UP" ]; then
   # Not the ▓░ blocks this started with: the bar sits under two dense rows of digits and
   # a heavy block competes with them. Dots recede almost completely when the window is
   # mostly empty, which is when the row has nothing to say. Box-drawing glyphs (━─) were
@@ -177,8 +193,8 @@ if [ -n "$USED" ]; then
   elif [ "$UP" -ge 70 ]; then C=$AMB
   else C=$GRN; fi
   OUT+=$'\n'"${PAD}${DIM}ctx ${R} ${C}${BAR}${R} ${C}${UP}%${R}"
-  [ -n "$CTXIN" ] && [ -n "$CTXMAX" ] && \
-    OUT+="${DIM}  $(human "$CTXIN")/$(human "$CTXMAX")${R}"
+  [ "${CTXNOW:-0}" -gt 0 ] && [ -n "$CTXMAX" ] && \
+    OUT+="${DIM}  $(human "$CTXNOW")/$(human "$CTXMAX")${R}"
 fi
 
 # ---- line 4: the compact nudge -------------------------------------------------
@@ -188,14 +204,15 @@ fi
 #              costing recall as well as tokens.
 # A 200k context on a 1M window is expensive but safe; 150k on a 200k window is both.
 # Saving is quoted from the one compact measured in docs/: 107,585 → 35,481, a ~67% cut.
-CUT=0; [ -n "$CTXIN" ] && CUT=$(( CTXIN * 67 / 100 ))
+CUT=0; [ "${CTXNOW:-0}" -gt 0 ] && CUT=$(( CTXNOW * 67 / 100 ))
 NUDGE_AT=${TOKENOMICS_NUDGE_AT:-150000}
+UPN=${UP:-0}          # capacity tier needs a number; absent window size means cost tier only
 
-if [ "$UP" -ge 85 ]; then
+if [ "$UPN" -ge 85 ]; then
   OUT+=$'\n'"${PAD}${RED}⚠ /compact now${R}${DIM} — ${UP}% of window · ~$(human "$CUT") off every later call · long context also makes earlier detail easier to lose${R}"
-elif [ "$UP" -ge 70 ]; then
+elif [ "$UPN" -ge 70 ]; then
   OUT+=$'\n'"${PAD}${AMB}◆ /compact soon${R}${DIM} — ${UP}% of window · ~$(human "$CUT") off every later call · long context also makes earlier detail easier to lose${R}"
-elif [ -n "$CTXIN" ] && [ "$CTXIN" -ge "$NUDGE_AT" ]; then
+elif [ "${CTXNOW:-0}" -ge "$NUDGE_AT" ]; then
   OUT+=$'\n'"${PAD}${DIM}◆ /compact would cut ~$(human "$CUT") from every later call (measured ≈67%)${R}"
 fi
 
