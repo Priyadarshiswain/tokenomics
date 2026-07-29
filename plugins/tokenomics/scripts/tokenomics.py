@@ -49,6 +49,8 @@ usage:
   tokenomics --statusline                show whether the status line is configured
   tokenomics --statusline init           configure it in ~/.claude/settings.json
   tokenomics --statusline init --force   overwrite an existing statusLine
+  tokenomics --statusline remove         take it back out, before uninstalling
+  tokenomics --statusline remove --force remove a statusLine that is not ours
 
 Bundle mode (the default) writes index.html + data.json with a session picker and an
 auto-refresh timer; serve it over http — file:// blocks fetch. --inline bakes the data
@@ -57,6 +59,10 @@ into a single file, which is what publishing as an Artifact needs.
 A plugin cannot ship a statusLine (plugin settings.json honours only `agent` and
 `subagentStatusLine`), so --statusline init writes the block for you. It backs up
 settings.json first and refuses to overwrite an existing statusLine without --force.
+
+Because that block is ours and no uninstall hook exists to retract it, run
+--statusline remove BEFORE uninstalling the plugin. Uninstalling first deletes the
+script the block points at, leaving a statusLine that fails on every prompt.
 
 --serve needs nothing beyond python3. Deterministic: same transcript in, same bytes out.
 """
@@ -546,14 +552,86 @@ def mode_list(explicit_project, nsess, nsess_set):
         print(f"{sid:<10} {started:<17} {calls:>7} {tokens:>12}  {label}")
 
 
-def mode_statusline(do_init, force):
+def load_settings(settings):
+    """Parse settings.json, or refuse loudly. Shared so that init and remove cannot
+    drift into disagreeing about what an unusable settings file looks like."""
+    try:
+        obj = json.loads(settings.read_text(encoding="utf-8"))
+    except ValueError:
+        die(f"{settings} is not valid JSON — refusing to touch it")
+    if not isinstance(obj, dict):
+        die(f"{settings} is not a JSON object — refusing to touch it")
+    return obj
+
+
+def write_settings(settings, obj):
+    """tmp + replace so an interrupted write cannot leave settings.json truncated."""
+    tmp = str(settings) + f".tokenomics-tmp.{os.getpid()}"
+    try:
+        Path(tmp).write_text(json.dumps(obj, indent=2, ensure_ascii=False) + "\n",
+                             encoding="utf-8")
+        os.replace(tmp, settings)
+    except OSError:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        die(f"failed to update {settings} (left unchanged)")
+
+
+def ours(cmd):
+    """Whether a configured statusLine command is one we wrote.
+
+    Deliberately a substring test rather than equality against a freshly built command:
+    the interpreter path and the marketplace directory both change across a reinstall,
+    so an exact comparison would fail to recognise a line we genuinely own -- and remove
+    would then refuse to clean up after itself, which is the whole point of it."""
+    return "tokenomics" in cmd and "statusline.py" in cmd
+
+
+def statusline_remove(settings, force):
+    """Undo what init did. Nothing else can: no uninstall hook exists."""
+    if not settings.is_file():
+        print(f"no {settings} — nothing to remove"); return
+    obj = load_settings(settings)
+    if "statusLine" not in obj:
+        print(f"no statusLine in {settings} — nothing to remove"); return
+
+    block = obj.get("statusLine")
+    current = block.get("command", "") if isinstance(block, dict) else ""
+    if not ours(current) and not force:
+        print(f"tokenomics: the configured statusLine is not ours:\n  {current}\n"
+              "re-run with --force to remove it anyway", file=sys.stderr)
+        sys.exit(1)
+
+    shutil.copyfile(settings, str(settings) + ".tokenomics-bak")
+    del obj["statusLine"]
+    write_settings(settings, obj)
+    print(f"removed the statusLine from {settings}")
+    print(f"  backup     → {settings}.tokenomics-bak")
+    print("Takes effect on your next interaction with Claude Code.")
+    # Say this here rather than only in the README: this is the moment the user is
+    # actually uninstalling, and these paths are the rest of what we leave behind.
+    print("\nto delete the state tokenomics has written, then uninstall:")
+    print(f"  rm -rf {HOME}/.claude/.tokenomics-statusline {HOME}/.claude/tokenomics")
+    print(f"  rm -f  {settings}.tokenomics-bak")
+
+
+def mode_statusline(action, force):
     """The one piece of setup a plugin cannot do for you.
 
     Path choice matters and is not obvious: point at the MARKETPLACE clone, which
     `claude plugin marketplace update` refreshes in place, and never at the versioned
     plugin cache, whose directory name changes on every release."""
-    plugin_root = Path(__file__).resolve().parent.parent
     settings = HOME / ".claude" / "settings.json"
+
+    # Before the lookup below, which dies if statusline.py is missing. Removal is the one
+    # action that must still work then: a user who uninstalled first has no script left,
+    # and refusing them is exactly how the broken statusLine becomes permanent.
+    if action == "remove":
+        statusline_remove(settings, force); return
+
+    plugin_root = Path(__file__).resolve().parent.parent
 
     mroot = HOME / ".claude" / "plugins" / "marketplaces"
     local = plugin_root / "statusline" / "statusline.py"
@@ -589,27 +667,21 @@ def mode_statusline(do_init, force):
         except (ValueError, AttributeError):
             current = ""
 
-    if not do_init:
+    if action != "init":
         print(f"script:   {sl}")
         if not current:
             print("settings: no statusLine configured")
             print("run:      tokenomics --statusline init")
         elif current == cmd:
             print("settings: configured, pointing here ✓")
+            print("run:      tokenomics --statusline remove  to take it back out")
         else:
             print("settings: configured, but pointing elsewhere:")
             print(f"          {current}")
             print("run:      tokenomics --statusline init --force  to repoint it")
         return
 
-    obj = {}
-    if settings.is_file():
-        try:
-            obj = json.loads(settings.read_text(encoding="utf-8"))
-        except ValueError:
-            die(f"{settings} is not valid JSON — refusing to touch it")
-        if not isinstance(obj, dict):
-            die(f"{settings} is not a JSON object — refusing to touch it")
+    obj = load_settings(settings) if settings.is_file() else {}
     if current and current != cmd and not force:
         print(f"tokenomics: a statusLine is already configured:\n  {current}\n"
               "re-run with --force to replace it", file=sys.stderr)
@@ -623,18 +695,7 @@ def mode_statusline(do_init, force):
     shutil.copyfile(settings, str(settings) + ".tokenomics-bak")
 
     obj["statusLine"] = {"type": "command", "command": cmd, "padding": 0}
-    # tmp + replace so an interrupted write cannot leave settings.json truncated.
-    tmp = str(settings) + f".tokenomics-tmp.{os.getpid()}"
-    try:
-        Path(tmp).write_text(json.dumps(obj, indent=2, ensure_ascii=False) + "\n",
-                             encoding="utf-8")
-        os.replace(tmp, settings)
-    except OSError:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        die(f"failed to update {settings} (left unchanged)")
+    write_settings(settings, obj)
     print(f"configured {settings}")
     print(f"  statusLine → {cmd}")
     print(f"  backup     → {settings}.tokenomics-bak")
@@ -715,7 +776,7 @@ def main(argv):
     mode, out, dirp, watch, serve = "bundle", "", "", 0, 0
     arg = project = ""
     nsess, nsess_set, allproj = 6, False, False
-    sl_init = force = False
+    sl_action, force = "status", False
 
     def need(flag, i):
         # Value-taking flags must verify the value exists before consuming it, or a
@@ -757,8 +818,8 @@ def main(argv):
             serve = need_num(a, i); i += 2
         elif a == "--statusline":
             mode = "statusline"; i += 1
-            if i < len(argv) and argv[i] == "init":
-                sl_init = True; i += 1
+            if i < len(argv) and argv[i] in ("init", "remove"):
+                sl_action = argv[i]; i += 1
         elif a == "--force":
             force = True; i += 1
         elif a in ("-h", "--help"):
@@ -767,7 +828,7 @@ def main(argv):
             arg = a; i += 1
 
     if mode == "statusline":
-        mode_statusline(sl_init, force); return 0
+        mode_statusline(sl_action, force); return 0
     if mode == "projects":
         mode_projects(); return 0
     if mode == "list":

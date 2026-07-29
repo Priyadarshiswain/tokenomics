@@ -90,6 +90,66 @@ else
     && ok "--statusline init leaves invalid JSON untouched" \
     || bad "--statusline init damaged an invalid settings.json"
 fi
+
+# ---- --statusline remove -------------------------------------------------------
+# init writes a key only the plugin knows how to retract: there is no uninstall hook, so
+# if remove regresses the user is left editing JSON by hand to stop a broken status line
+# from running on every prompt. Each case below is one way that has to keep working.
+
+if HOME="$SH" python3 "$TOK" --statusline remove >/dev/null 2>&1; then
+  bad "--statusline remove must refuse invalid JSON"
+else
+  [ "$(cat "$SET")" = "{ not json" ] \
+    && ok "--statusline remove leaves invalid JSON untouched" \
+    || bad "--statusline remove damaged an invalid settings.json"
+fi
+
+printf '{"model":"opus"}\n' > "$SET"
+HOME="$SH" python3 "$TOK" --statusline remove >/dev/null 2>&1
+[ $? -eq 0 ] && [ "$(jq -r '.model' "$SET")" = "opus" ] \
+  && ok "--statusline remove with nothing to remove is a no-op, not an error" \
+  || bad "--statusline remove with nothing to remove is a no-op, not an error"
+
+rm -f "$SET.tokenomics-bak"
+HOME="$SH" python3 "$TOK" --statusline init >/dev/null 2>&1
+HOME="$SH" python3 "$TOK" --statusline remove >/dev/null 2>&1
+jq -e 'has("statusLine")' "$SET" >/dev/null 2>&1 \
+  && bad "--statusline remove deletes the statusLine key" \
+  || ok "--statusline remove deletes the statusLine key"
+[ "$(jq -r '.model' "$SET")" = "opus" ] \
+  && ok "--statusline remove preserves existing keys" \
+  || bad "--statusline remove preserves existing keys"
+[ -f "$SET.tokenomics-bak" ] \
+  && ok "--statusline remove writes a backup" || bad "--statusline remove writes a backup"
+
+# The refusal that matters: somebody else's status line is not ours to delete.
+jq '.statusLine.command="bash /somebody/else.sh"' "$SET" > "$SH/t" && mv "$SH/t" "$SET"
+if HOME="$SH" python3 "$TOK" --statusline remove >/dev/null 2>&1; then
+  bad "--statusline remove must refuse a foreign statusLine"
+else
+  [ "$(jq -r '.statusLine.command' "$SET")" = "bash /somebody/else.sh" ] \
+    && ok "--statusline remove refuses a foreign statusLine, leaves it intact" \
+    || bad "--statusline remove refused but still modified the file"
+fi
+
+HOME="$SH" python3 "$TOK" --statusline remove --force >/dev/null 2>&1
+jq -e 'has("statusLine")' "$SET" >/dev/null 2>&1 \
+  && bad "--statusline remove --force removes a foreign statusLine" \
+  || ok "--statusline remove --force removes a foreign statusLine"
+
+# Removal must not need statusline.py. Running from a copy with no statusline/ sibling
+# and no marketplace under HOME reproduces the state of a user who uninstalled the plugin
+# BEFORE retracting the setting -- the exact case where refusing strands them.
+ORPHAN=$(mktemp -d); cp "$TOK" "$ORPHAN/tokenomics.py"
+HOME="$SH" python3 "$TOK" --statusline init >/dev/null 2>&1
+if HOME="$SH" python3 "$ORPHAN/tokenomics.py" --statusline remove >/dev/null 2>&1; then
+  jq -e 'has("statusLine")' "$SET" >/dev/null 2>&1 \
+    && bad "--statusline remove works with statusline.py gone" \
+    || ok "--statusline remove works with statusline.py gone"
+else
+  bad "--statusline remove works with statusline.py gone"
+fi
+rm -rf "$ORPHAN"
 rm -rf "$SH"
 
 # The command --statusline init WRITES must actually execute. Testing only that the JSON
