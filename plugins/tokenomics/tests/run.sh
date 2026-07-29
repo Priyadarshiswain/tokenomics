@@ -137,6 +137,17 @@ jq -e 'has("statusLine")' "$SET" >/dev/null 2>&1 \
   && bad "--statusline remove --force removes a foreign statusLine" \
   || ok "--statusline remove --force removes a foreign statusLine"
 
+# A typo'd action must fail loudly. Printing status and exiting 0 looks exactly like a
+# successful removal, and the next thing the user does is uninstall.
+HOME="$SH" python3 "$TOK" --statusline init >/dev/null 2>&1
+if HOME="$SH" python3 "$TOK" --statusline remoev >/dev/null 2>&1; then
+  bad "--statusline with an unknown action must fail, not print status"
+else
+  jq -e 'has("statusLine")' "$SET" >/dev/null 2>&1 \
+    && ok "--statusline with an unknown action fails and changes nothing" \
+    || bad "--statusline with an unknown action removed the statusLine anyway"
+fi
+
 # Removal must not need statusline.py. Running from a copy with no statusline/ sibling
 # and no marketplace under HOME reproduces the state of a user who uninstalled the plugin
 # BEFORE retracting the setting -- the exact case where refusing strands them.

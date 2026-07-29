@@ -818,7 +818,14 @@ def main(argv):
             serve = need_num(a, i); i += 2
         elif a == "--statusline":
             mode = "statusline"; i += 1
-            if i < len(argv) and argv[i] in ("init", "remove"):
+            # A bare word here can only be meant as the action, so an unknown one is a
+            # typo, not a target. Ignoring it silently printed status and exited 0 --
+            # which is indistinguishable from a successful `remove` to anyone who then
+            # uninstalls, stranding the very setting they were trying to retract.
+            if i < len(argv) and not argv[i].startswith("-"):
+                if argv[i] not in ("init", "remove"):
+                    die(f"--statusline: unknown action {argv[i]!r} "
+                        "(expected 'init' or 'remove')")
                 sl_action = argv[i]; i += 1
         elif a == "--force":
             force = True; i += 1
