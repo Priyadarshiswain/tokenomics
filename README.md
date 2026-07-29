@@ -89,6 +89,16 @@ rm -rf ~/.claude/.tokenomics-statusline ~/.claude/tokenomics
 rm -f ~/.claude/settings.json.tokenomics-bak
 ```
 
+One directory is left that is not ours to delete from inside the plugin, and that nothing
+else clears either — the versioned install cache. `claude plugin update` adds a directory
+per release and removes none, and uninstalling does not clear them, so the whole tree is
+orphaned once the marketplace declaration is gone. Measured on an uninstall after a day of
+iteration: ten directories, 1.5 MB. To remove it:
+
+```bash
+rm -rf ~/.claude/plugins/cache/pd-claude-plugins
+```
+
 `~/.claude/tokenomics/` holds the report bundles, one directory per session, so check it
 before deleting if you want to keep any. `.tokenomics-statusline/` is per-session status
 line state and prunes itself after 30 days. The hook's own state lives in the plugin data
