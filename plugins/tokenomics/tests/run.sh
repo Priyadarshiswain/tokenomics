@@ -92,6 +92,21 @@ else
 fi
 rm -rf "$SH"
 
+# The command --statusline init WRITES must actually execute. Testing only that the JSON
+# key appears is not enough: a version of this wrote `"python" "~/.claude/..."` and the
+# shell handed Python a literal tilde, because ~ does not expand inside double quotes.
+# The key was present and correct-looking; the status line was blank.
+SH2=$(mktemp -d); mkdir -p "$SH2/.claude"
+HOME="$SH2" python3 "$TOK" --statusline init >/dev/null 2>&1
+CMD=$(jq -r '.statusLine.command' "$SH2/.claude/settings.json" 2>/dev/null)
+PAYLOAD=$(printf '{"model":{"display_name":"T"},"transcript_path":"%s","context_window":{"used_percentage":50,"context_window_size":200000,"total_input_tokens":100000,"current_usage":{"input_tokens":1,"output_tokens":1,"cache_read_input_tokens":1,"cache_creation_input_tokens":1}}}' "$(cd .. && pwd)/tests/fixture.jsonl")
+if [ -n "$CMD" ] && printf '%s' "$PAYLOAD" | sh -c "$CMD" 2>/dev/null | grep -q 'ctx'; then
+  ok "the command --statusline init writes actually runs"
+else
+  bad "the command --statusline init writes does not run: $CMD"
+fi
+rm -rf "$SH2"
+
 # ---- status line ---------------------------------------------------------------
 # The context row derives its percentage through a fallback chain, and every bug in it so
 # far has looked the same from outside: a row silently not existing, indistinguishable

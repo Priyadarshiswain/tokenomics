@@ -567,12 +567,15 @@ def mode_statusline(do_init, force):
     if sl is None:
         die("cannot find statusline.py")
 
-    # Write $HOME back as ~ so the settings file stays portable between machines.
-    sl_tilde = str(sl).replace(str(HOME), "~", 1)
-    # sys.executable, not a bare "python3": this is the one place we KNOW the right
-    # interpreter, because we are running in it. A bare name has to guess, and on Windows
-    # the guess is wrong as often as not. Quoted because program paths contain spaces.
-    cmd = f'"{sys.executable}" "{sl_tilde}"'
+    # ABSOLUTE paths, not ~. A shell does not expand ~ inside double quotes, and the
+    # quotes are not optional -- program paths contain spaces. An earlier version wrote
+    # `"..." "~/.claude/..."` and the status line silently went blank, because the shell
+    # handed Python the literal tilde. Nothing here is portable between machines anyway:
+    # sys.executable is already an absolute, machine-specific interpreter path.
+    #
+    # sys.executable rather than a bare "python3" is the point: this is the one place we
+    # KNOW the right interpreter, because we are running in it.
+    cmd = f'"{sys.executable}" "{sl}"'
 
     current = ""
     if settings.is_file():
