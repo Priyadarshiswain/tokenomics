@@ -24,21 +24,31 @@ is that this tool shows you why you hit a limit sooner than you expected.
 | `/tokenomics` | measure a session, summarise it, or render an HTML report |
 | `/tokenomics:statusline` | check or set up the status line |
 | status line | live per-call and per-session token counts, plus a compact nudge — **terminal only** |
-| compact nudge | a `Stop` hook that speaks once when context gets expensive — works everywhere, including desktop |
+| compact nudge | a `Stop` hook that speaks once per 150k of context, escalating — works everywhere, including desktop |
 | skill | Claude reaches for the mental model on its own when you ask why a session feels heavy |
 
 ## Install
 
+From your terminal:
+
 ```bash
+claude plugin marketplace add Priyadarshiswain/tokenomics
+claude plugin install tokenomics@pd-claude-plugins
+```
+
+Or, inside a Claude Code session, the same thing as slash commands:
+
+```
 /plugin marketplace add Priyadarshiswain/tokenomics
 /plugin install tokenomics@pd-claude-plugins
 ```
 
-Requires **`python3`** and nothing else. There is no shell script left in the plugin and
-`jq` is not needed — everything was ported to Python, which also removed the dependency
-that was hardest to satisfy on Windows. The local dashboard binds to localhost only.
-Developed and tested on macOS and Linux; **Windows is untested** — see the note under the
-compact nudge.
+Requires **`python3`**. The three components — measure tool, status line, hook — are pure
+Python, and `jq` is not needed anywhere; the port removed the dependency that was hardest
+to satisfy on Windows. Two small bash pieces remain: `bin/tokenomics`, the shim that makes
+the tool a bare command on the Bash tool's PATH, and `tests/run.sh`, the test harness.
+The local dashboard binds to localhost only. Developed and tested on macOS and Linux;
+**Windows is untested** — see the note under the compact nudge.
 
 Once installed, `tokenomics` is on the Bash tool's `PATH` inside a Claude Code session, so
 Claude can run `tokenomics --json` without knowing where the plugin lives. From your own
@@ -53,19 +63,22 @@ Desktop users get the same numbers on demand from `/tokenomics`.
 
 `statusLine` is also a user setting that a plugin cannot ship — plugin `settings.json`
 currently honours only the `agent` and `subagentStatusLine` keys — so it needs one setup
-step. The tool does it for you:
+step. The tool does it for you — from your terminal:
 
 ```bash
-tokenomics --statusline init
+python3 ~/.claude/plugins/marketplaces/pd-claude-plugins/plugins/tokenomics/scripts/tokenomics.py --statusline init
 ```
+
+Inside a session it is just `tokenomics --statusline init` — the bare name works there
+because `bin/` is on the *Bash tool's* PATH, not your shell's.
 
 It finds the installed script, writes the block into `~/.claude/settings.json`, and backs
 the file up first. It refuses to replace a `statusLine` you already have unless you pass
 `--force`, and refuses to touch the file at all if it is not valid JSON. To see the current
-state without changing anything:
+state without changing anything, use `--statusline` without `init`:
 
 ```bash
-tokenomics --statusline
+python3 ~/.claude/plugins/marketplaces/pd-claude-plugins/plugins/tokenomics/scripts/tokenomics.py --statusline
 ```
 
 The path it writes points at `marketplaces/` — the marketplace clone, which
@@ -98,9 +111,6 @@ The nudge's opening words are **bold and coloured**; the explanation stays dim. 
 tier used to be dim end to end, which made the one row with something to say the quietest
 thing on screen — it read as a footnote and got skipped.
 
-```
-```
-
 `↻` cache read · `✎` cache write. Row 1 is the last call, row 2 is the session to date.
 
 Row 3 is the context window — the only "how much room is left" figure here; everything
@@ -121,9 +131,10 @@ argument, because this is the one surface that knows both.
 Session totals are not in the status-line payload, so the script reads the transcript
 **incrementally** by byte offset, keeping per-session state under
 `~/.claude/.tokenomics-statusline/`. Steady-state cost is independent of transcript size:
-0.03s per tick on a 265 MB transcript. Cold start is capped at 32 MB of back-scan
-(`TOKENOMICS_COLD_CAP`); when capped the row reads `sess~` — the tilde means history before
-the cap is not counted.
+27 ms per tick on a 253 MB transcript, measured on the Python version. Cold start is
+capped at 32 MB of back-scan (`TOKENOMICS_COLD_CAP`) and measured at ~0.13 s; when capped
+the row reads `sess~` — the tilde means history before the cap is not counted. State for
+sessions untouched in 30 days is pruned automatically, checked at most once a day.
 
 ## The compact nudge
 
@@ -138,7 +149,7 @@ A 200k context on a 1M window is expensive but perfectly safe. 150k on a 200k wi
 both. Collapsing these into one number makes the tool wrong in one of those cases.
 
 ```
-◆ /compact would cut ~123.3k from every later call (measured ≈67%)
+◆ /compact — would cut ~123.3k from every later call (measured ≈67%)
 
 ◆ /compact soon — 76% of window · ~101.8k off every later call · long context also
                   makes earlier detail easier to lose
@@ -174,10 +185,11 @@ not a cliff, and nothing special happens at exactly 70%. That line is deliberate
 names what degrades rather than implying the model is broadly worse. It is also the only
 claim in this plugin not measured from a transcript.
 
-**Windows.** Untested, and honest about it. The plugin now needs only `python3`, which
-removed `jq` — the dependency that was hardest to satisfy there. The one remaining risk is
-the hook: its command names `python3`, and a Windows install may only provide `python`. It
-fails quietly if so — you lose the nudge, nothing breaks.
+**Windows.** Untested, and honest about it. The components are Python-only, which removed
+`jq` — the dependency that was hardest to satisfy there. Two remaining risks: the hook's
+command names `python3`, which a Windows install may spell `python` — it fails quietly if
+so, you lose the nudge and nothing breaks; and the `bin/tokenomics` shim is bash, so the
+bare command depends on the Bash tool's shell (the scripts run fine by path either way).
 
 **The cost tier is a ladder, and it escalates.** It speaks once per
 `TOKENOMICS_NUDGE_AT` of context — at 150k, 300k, 450k — and stays silent on the turns
@@ -198,12 +210,12 @@ every rung states a genuinely larger number, because the cost genuinely is large
 
 A compact drops the context and re-arms the ladder, so it warns again on the way back up.
 
-Neither tier speaks on every turn, A tool about wasted tokens should
+Neither tier speaks on every turn. A tool about wasted tokens should
 not itself be noise.
 
-The hook reads a bounded 256 KB tail rather than the whole file — **0.04s on a 253 MB
-transcript**. Every failure path exits silently, so a missing `jq`, an unreadable transcript,
-or malformed input can never disrupt a turn.
+The hook reads a bounded 256 KB tail rather than the whole file — **~25 ms on a 253 MB
+transcript**, measured on the Python version. Every failure path exits silently, so an unreadable transcript or malformed
+input can never disrupt a turn.
 
 ## The measure tool
 
@@ -249,7 +261,8 @@ plugins/tokenomics/                  the plugin itself; everything below ships o
   hooks/hooks.json                   Stop-hook registration
   hooks/compact-nudge.py             the compact nudge (everywhere, incl. desktop)
   docs/tokenomics-explained.md       long-form companion
-  tests/run.sh                       golden test for the measurement + CLI guards
+  tests/run.sh                       26 tests: measurement golden file, CLI guards,
+                                     --statusline init, ctx fallbacks, the nudge ladder
 ```
 
 Run the tests with `bash plugins/tokenomics/tests/run.sh`.

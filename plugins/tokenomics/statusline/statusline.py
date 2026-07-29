@@ -16,10 +16,28 @@ import json
 import os
 import re
 import sys
+import time
 from pathlib import Path
 
 HOME = Path.home()
 STATED = HOME / ".claude" / ".tokenomics-statusline"
+
+
+def _housekeep():
+    """Prune state for sessions untouched in 30 days — one small file per session would
+    otherwise accumulate forever. Marker-throttled to once a day, so the steady-state
+    tick pays one stat() rather than a directory scan. (This existed in the bash version,
+    was lost in the port, and is tested now.)"""
+    marker = STATED / ".cleaned"
+    try:
+        if marker.is_file() and time.time() - marker.stat().st_mtime < 86400:
+            return
+        for p in STATED.iterdir():
+            if p.suffix in (".state", ".nudge") and time.time() - p.stat().st_mtime > 30 * 86400:
+                p.unlink()
+        marker.touch()
+    except OSError:
+        pass
 
 
 # ---- colour ------------------------------------------------------------------
@@ -101,6 +119,13 @@ def _num(line, key):
     return int(m.group(1)) if m else 0
 
 
+def _iv(x):
+    try:
+        return int(x)
+    except (TypeError, ValueError):
+        return 0
+
+
 def session_totals(f):
     STATED.mkdir(parents=True, exist_ok=True)
     st = STATED / (f.stem + ".state")
@@ -159,16 +184,39 @@ def session_totals(f):
             consumed += len(line) + 1
             if not _RX.search(line):
                 continue
-            mid = _ID.search(line)
-            if not mid:
-                continue
-            mid = mid.group(1).decode()
-            mm = _MODEL.search(line)
-            model = mm.group(1).decode() if mm else "?"
-            vals = [_num(line, b"input_tokens"), _num(line, b"output_tokens"),
-                    _num(line, b"cache_read_input_tokens"),
-                    _num(line, b"cache_creation_input_tokens"),
-                    _num(line, b"ephemeral_1h_input_tokens")]
+            # Parse the whole line when it parses. The regex fast path reads the FIRST
+            # "model":"..." on the line, which a nested object inside message content can
+            # fake — and it counts phantom usage from records that merely QUOTE a usage
+            # block in their text. A real parse fixes both. A mid-write fragment fails
+            # json.loads and falls back to the regexes; the next tick re-reads the
+            # completed record and the dedup-subtract corrects any regex misread.
+            mid = None
+            try:
+                msg = (json.loads(line).get("message") or {})
+                u = msg.get("usage")
+                if not isinstance(u, dict):
+                    continue                     # "usage" was only text, not a usage block
+                rid = msg.get("id")
+                if not (isinstance(rid, str) and rid.startswith("msg_")):
+                    continue
+                mid = rid
+                model = msg.get("model") or "?"
+                cc = u.get("cache_creation") or {}
+                vals = [_iv(u.get("input_tokens")), _iv(u.get("output_tokens")),
+                        _iv(u.get("cache_read_input_tokens")),
+                        _iv(u.get("cache_creation_input_tokens")),
+                        _iv(cc.get("ephemeral_1h_input_tokens"))]
+            except (ValueError, AttributeError):
+                m = _ID.search(line)
+                if not m:
+                    continue
+                mid = m.group(1).decode()
+                mm = _MODEL.search(line)
+                model = mm.group(1).decode() if mm else "?"
+                vals = [_num(line, b"input_tokens"), _num(line, b"output_tokens"),
+                        _num(line, b"cache_read_input_tokens"),
+                        _num(line, b"cache_creation_input_tokens"),
+                        _num(line, b"ephemeral_1h_input_tokens")]
             if last and mid == last[0]:
                 prev = per_model.setdefault(last[1], [0, 0, 0, 0, 0])
                 for i in range(5):
@@ -219,6 +267,7 @@ def main():
     l_cr = cu.get("cache_read_input_tokens") or 0
     l_cw = cu.get("cache_creation_input_tokens") or 0
 
+    _housekeep()
     f = find_transcript(payload)
     tot, partial = (None, False)
     if f:

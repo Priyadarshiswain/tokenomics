@@ -208,6 +208,64 @@ printf '{"transcript_path":"%s"}' "$TX" | TOKENOMICS_NUDGE=off python3 "$HOOK" 2
 unset CLAUDE_PLUGIN_DATA
 rm -rf "$HD"
 
+# ---- state housekeeping ---------------------------------------------------------
+# Files idle >30 days are pruned, at most once a day (marker-throttled). This existed in
+# the bash status line and was LOST in the python port — hence a test, so it cannot be
+# lost silently again. HOME is overridden so the real state dir is never touched.
+HK=$(mktemp -d); SD="$HK/.claude/.tokenomics-statusline"; mkdir -p "$SD"
+touch "$SD/dead.state" "$SD/dead.nudge" "$SD/live.state"
+touch -t 202501010000 "$SD/dead.state" "$SD/dead.nudge"
+pay '"used_percentage":50,"context_window_size":200000,"total_input_tokens":100000,' \
+  | HOME="$HK" python3 "$SL" >/dev/null 2>&1
+if [ ! -e "$SD/dead.state" ] && [ ! -e "$SD/dead.nudge" ] && [ -e "$SD/live.state" ]; then
+  ok "housekeeping prunes >30d state, keeps fresh"
+else
+  bad "housekeeping prunes >30d state, keeps fresh"
+fi
+# The throttle: with a fresh marker, even a stale file survives until tomorrow.
+touch -t 202501010000 "$SD/live.state"
+pay '"used_percentage":50,"context_window_size":200000,"total_input_tokens":100000,' \
+  | HOME="$HK" python3 "$SL" >/dev/null 2>&1
+[ -e "$SD/live.state" ] && ok "housekeeping is marker-throttled to once a day" \
+  || bad "housekeeping is marker-throttled to once a day"
+rm -rf "$HK"
+
+# ---- model decoy ----------------------------------------------------------------
+# The regex fast path reads the FIRST "model":"..." on a line, which a nested object in
+# message content can fake. Full-line parsing must bucket under message.model.
+DK=$(mktemp -d); DSD="$DK/.claude/.tokenomics-statusline"; mkdir -p "$DSD"
+DTX="$DK/decoy.jsonl"
+python3 - "$DTX" <<'PY'
+import json, sys
+rec = {"type": "assistant", "timestamp": "2026-01-01T00:00:00.000Z",
+       "message": {"id": "msg_decoy1",
+                   "content": [{"type": "tool_use", "id": "t1", "name": "X",
+                                "input": {"model": "DECOY-MODEL"}}],
+                   "model": "real-model",
+                   "usage": {"input_tokens": 1, "output_tokens": 2,
+                             "cache_read_input_tokens": 3,
+                             "cache_creation_input_tokens": 4}}}
+open(sys.argv[1], "w").write(json.dumps(rec) + "\n")
+PY
+printf '{"transcript_path":"%s","model":{"display_name":"T"},"context_window":{"current_usage":{}}}' "$DTX" \
+  | HOME="$DK" python3 "$SL" >/dev/null 2>&1
+STF="$DSD/decoy.state"
+if grep -q '^M real-model' "$STF" 2>/dev/null && ! grep -q 'DECOY' "$STF" 2>/dev/null; then
+  ok "model decoy in content does not pollute per-model state"
+else
+  bad "model decoy in content does not pollute per-model state"
+fi
+rm -rf "$DK"
+
+# ---- --project with an external transcript directory ----------------------------
+# Any directory holding *.jsonl is a valid target — that is how exported or copied
+# transcripts get measured. The port briefly required it to sit under ~/.claude.
+XD=$(mktemp -d); cp fixture.jsonl "$XD/abc123-external.jsonl"
+python3 "$TOK" --project "$XD" --json 2>/dev/null | grep -q '"records": 9' \
+  && ok "--project accepts a transcript directory outside ~/.claude" \
+  || bad "--project accepts a transcript directory outside ~/.claude"
+rm -rf "$XD"
+
 echo "----"
 echo "$pass passed, $fail failed"
 exit "$fail"
