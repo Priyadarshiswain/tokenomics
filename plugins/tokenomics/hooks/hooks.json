@@ -1,5 +1,5 @@
 {
-  "description": "Warn once when session context passes the point where a /compact starts paying for itself. Cost tier only — hooks are not given the context window size, so the capacity tier lives in the status line.",
+  "description": "Nudge once per 150k of session context — an escalating ladder that re-arms after a compact. Cost tier only — hooks are not given the context window size, so the capacity tier lives in the status line.",
   "hooks": {
     "Stop": [
       {

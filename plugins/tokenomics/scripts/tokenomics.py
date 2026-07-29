@@ -10,13 +10,9 @@ TWO OUTPUT MODES
   --inline          one self-contained .html with the data baked in. Use this for
                     publishing as an Artifact (artifact CSP blocks all fetches).
 
-This is a port of tokenomics.sh. Two things drove it: the incremental parser was regex
-over raw JSONL lines, and `jq` is a hard dependency that macOS does not ship while it does
-ship python3. The status line and the Stop hook stay in bash on purpose -- measured,
-python3 startup is ~23ms against bash's ~3ms, which is the wrong trade for something that
-runs on every assistant message.
-
-Byte-identical `--json` output against the bash version is enforced by tests/run.sh.
+Pure Python, like the status line and the Stop hook -- python3 is the plugin's only
+dependency. `--json` output is held byte-identical to tests/golden.json by tests/run.sh;
+regenerate the golden file only after an INTENDED measurement change, and diff it first.
 """
 import json
 import os
@@ -99,7 +95,10 @@ def project_dir(explicit=None):
     touched project on the machine."""
     if explicit:
         p = Path(explicit)
-        if p.is_dir() and (p.parent == PROJ_ROOT):
+        # Same test as the implicit branch below: ANY directory holding transcripts is a
+        # valid target, wherever it lives — that is how exported or copied transcripts
+        # get measured. (Requiring it to sit under PROJ_ROOT was a porting error.)
+        if p.is_dir() and any(p.glob("*.jsonl")):
             return p
         d = slugdir(explicit)
         if d.is_dir():
@@ -556,14 +555,19 @@ def mode_statusline(do_init, force):
     plugin_root = Path(__file__).resolve().parent.parent
     settings = HOME / ".claude" / "settings.json"
 
-    sl = None
-    for c in sorted((HOME / ".claude/plugins/marketplaces").glob(
-            "*/plugins/*/statusline/statusline.py")):
-        sl = c
-        break
-    if sl is None:
-        c = plugin_root / "statusline" / "statusline.py"
-        sl = c if c.is_file() else None
+    mroot = HOME / ".claude" / "plugins" / "marketplaces"
+    local = plugin_root / "statusline" / "statusline.py"
+    # Running from the installed marketplace copy? Then this file IS the right target.
+    # Otherwise prefer an installed copy over a dev clone (its path survives updates),
+    # found with a glob pinned to THIS plugin — an unpinned */plugins/*/ would let any
+    # other installed plugin with the same layout win the alphabetical race.
+    if local.is_file() and str(local).startswith(str(mroot) + os.sep):
+        sl = local
+    else:
+        sl = next(iter(sorted(mroot.glob(
+            "*/plugins/tokenomics/statusline/statusline.py"))), None)
+        if sl is None and local.is_file():
+            sl = local
     if sl is None:
         die("cannot find statusline.py")
 
