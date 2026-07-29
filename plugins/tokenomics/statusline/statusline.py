@@ -36,11 +36,11 @@ def _use_colour():
 
 
 if _use_colour():
-    DIM, R = "\033[2m", "\033[0m"
+    DIM, R, B = "\033[2m", "\033[0m", "\033[1m"
     GRN, AMB, RED = "\033[32m", "\033[33m", "\033[31m"
     CYA, MAG, BLU = "\033[36m", "\033[35m", "\033[34m"
 else:
-    DIM = R = GRN = AMB = RED = CYA = MAG = BLU = ""
+    DIM = R = B = GRN = AMB = RED = CYA = MAG = BLU = ""
 SEP = f"{DIM} · {R}"
 
 
@@ -280,13 +280,16 @@ def main():
     upn = up or 0
     tail = (f" · ~{human(cut)} off every later call · long context also makes earlier "
             f"detail easier to lose")
+    # The lead is bold and coloured, the explanation stays dim. The cost tier used to be
+    # dim end-to-end, which made the one row with something to say the quietest thing on
+    # screen -- it read as a footnote and got skipped.
     if upn >= 85:
-        rows.append(f"{pad}{RED}⚠ /compact now{R}{DIM} — {up}% of window{tail}{R}")
+        rows.append(f"{pad}{B}{RED}⚠ /compact now{R}{DIM} — {up}% of window{tail}{R}")
     elif upn >= 70:
-        rows.append(f"{pad}{AMB}◆ /compact soon{R}{DIM} — {up}% of window{tail}{R}")
+        rows.append(f"{pad}{B}{AMB}◆ /compact soon{R}{DIM} — {up}% of window{tail}{R}")
     elif ctxnow >= nudge_at:
-        rows.append(f"{pad}{DIM}◆ /compact would cut ~{human(cut)} from every later call "
-                    f"(measured ≈67%){R}")
+        rows.append(f"{pad}{B}{AMB}◆ /compact{R}{DIM} — would cut ~{human(cut)} from every "
+                    f"later call (measured ≈67%){R}")
 
     sys.stdout.write("\n".join(rows) + "\n")
     return 0

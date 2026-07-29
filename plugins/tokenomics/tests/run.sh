@@ -146,6 +146,68 @@ for w in abc -5 0 ''; do
 done
 [ "${n:-0}" -ge 3 ] && ok "hostile TOKENOMICS_BAR_WIDTH falls back, line survives"
 
+# ---- the compact nudge ----------------------------------------------------------
+# The nudge is a LADDER: it speaks once per NUDGE_AT of context (150k, 300k, 450k) and is
+# silent in between. A compact drops the context and re-arms it. Driven by rewriting a
+# synthetic transcript, which is how a real session grows.
+HD=$(mktemp -d); TX="$HD/sess.jsonl"; export CLAUDE_PLUGIN_DATA="$HD/state"
+mkdir -p "$CLAUDE_PLUGIN_DATA"
+HOOK="../hooks/compact-nudge.py"
+
+# $1 = context tokens. Echoes "speak" or "silent".
+turn() {
+  python3 -c "
+import json,sys
+open(sys.argv[2],'w').write(json.dumps({'type':'assistant','timestamp':'2026-01-01T00:00:00.000Z',
+ 'message':{'id':'msg_x','model':'m','usage':{'input_tokens':0,'output_tokens':1,
+ 'cache_read_input_tokens':int(sys.argv[1]),'cache_creation_input_tokens':0}}})+'\n')" "$1" "$TX"
+  out=$(printf '{"transcript_path":"%s","hook_event_name":"Stop"}' "$TX" | python3 "$HOOK" 2>/dev/null)
+  [ -n "$out" ] && echo speak || echo silent
+}
+
+seq_got="$(turn 90000) $(turn 151000) $(turn 220000) $(turn 305000) $(turn 440000) $(turn 460000)"
+seq_want="silent speak silent speak silent speak"
+[ "$seq_got" = "$seq_want" ] && ok "nudge ladder: speaks once per 150k rung" \
+  || bad "nudge ladder: got [$seq_got] want [$seq_want]"
+
+# Tone escalates with the rung: ◆ for the first two, ⚠ from the third. The wording is
+# driven by arithmetic rather than adjectives, so assert the marker and the multiple.
+msg2() {
+  python3 -c "
+import json,sys
+open(sys.argv[2],'w').write(json.dumps({'type':'assistant','timestamp':'2026-01-01T00:00:00.000Z',
+ 'message':{'id':'msg_x','model':'m','usage':{'input_tokens':0,'output_tokens':1,
+ 'cache_read_input_tokens':int(sys.argv[1]),'cache_creation_input_tokens':0}}})+'\n')" "$1" "$TX"
+  printf '{"transcript_path":"%s","hook_event_name":"Stop"}' "$TX" | python3 "$HOOK" 2>/dev/null \
+    | python3 -c "import sys,json;d=sys.stdin.read();print(json.loads(d)['systemMessage'] if d.strip() else '')"
+}
+rm -f "$CLAUDE_PLUGIN_DATA"/*.nudge
+m1=$(msg2 155000); m2=$(msg2 310000); m3=$(msg2 465000)
+esc=1
+case "$m1" in "◆"*) ;; *) esc=0 ;; esac
+case "$m2" in *"second reminder"*) ;; *) esc=0 ;; esac
+case "$m3" in "⚠"*"3×"*) ;; *) esc=0 ;; esac
+[ "$esc" = 1 ] && ok "nudge escalates: ◆ then ◆ then ⚠ with the multiple" \
+  || bad "nudge escalation wrong: [$m1] [$m2] [$m3]"
+rm -f "$CLAUDE_PLUGIN_DATA"/*.nudge
+
+# a compact drops context; the ladder must re-arm and fire again on the way back up
+seq_got2="$(turn 155000)"   # re-seed the ladder after the escalation check
+rearm_got="$(turn 48000) $(turn 155000)"
+[ "$rearm_got" = "silent speak" ] && ok "nudge re-arms after a compact" \
+  || bad "nudge re-arms after a compact: got [$rearm_got]"
+
+# it must never be the reason a turn fails
+hook_ok=1
+for bad_in in '{}' 'garbage' '{"transcript_path":"/nope.jsonl"}'; do
+  printf '%s' "$bad_in" | python3 "$HOOK" >/dev/null 2>&1 || hook_ok=0
+done
+printf '{"transcript_path":"%s"}' "$TX" | TOKENOMICS_NUDGE=off python3 "$HOOK" 2>/dev/null | grep -q . && hook_ok=0
+[ "$hook_ok" = 1 ] && ok "nudge exits 0 on bad input and obeys the off switch" \
+  || bad "nudge exits non-zero on bad input, or ignores TOKENOMICS_NUDGE=off"
+unset CLAUDE_PLUGIN_DATA
+rm -rf "$HD"
+
 echo "----"
 echo "$pass passed, $fail failed"
 exit "$fail"

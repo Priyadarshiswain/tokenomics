@@ -121,7 +121,10 @@ Other things worth knowing when reading a transcript directly:
 - `hooks/compact-nudge.py` — a `Stop` hook carrying the cost half of the nudge everywhere,
   desktop included. Two tiers exist: **cost** (context ≥150k, any window) and **capacity**
   (≥70% of the window). Only the status line can do the second, because the window size is
-  given to status lines and not to hooks. If a user asks why a green context bar appears
+  given to status lines and not to hooks. The cost tier repeats every 150k — 150k, 300k,
+  450k — rather than firing once, and each rung is firmer than the last. The escalation is
+  arithmetic rather than adjectives: every rung quotes a larger saving because the cost
+  really is larger. If a user asks why a green context bar appears
   alongside a compact suggestion, that is the reason and it is not a bug: plenty of room,
   still expensive per call.
 - `docs/tokenomics-explained.md` — the long-form companion: the rate card, rebuild

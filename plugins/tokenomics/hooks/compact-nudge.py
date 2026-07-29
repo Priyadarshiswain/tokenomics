@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""compact-nudge.py — Stop hook. Says "/compact" once, when it starts being worth it.
+"""compact-nudge.py — Stop hook. Says "/compact" each time context climbs another 150k.
 
 WHY A HOOK AND NOT THE STATUS LINE
 The status line renders in the terminal only; the desktop app has no surface for it.
@@ -13,9 +13,9 @@ So context size is recomputed here as input + cache_read + cache_creation of the
 call, which is exactly how Claude Code derives its own context figure.
 
 WHY IT IS QUIET
-It speaks only when a threshold is CROSSED, not on every turn, and it re-arms when a
-compact drops context back down. A nag on every message would be noise, and noise in a
-plugin about wasted tokens would be self-defeating.
+It speaks once per 150k of context — at 150k, 300k, 450k — and not on the turns in
+between. A compact drops the context and re-arms the ladder. A nag on every message would
+be noise, and noise in a plugin about wasted tokens would be self-defeating.
 """
 import json
 import os
@@ -91,13 +91,19 @@ def main():
     # So this makes the one argument it can make honestly: rent. 150k of context costs the
     # same on every call whether the window is 200k or 1M.
     nudge_at = os.environ.get("TOKENOMICS_NUDGE_AT") or "150000"
-    nudge_at = int(nudge_at) if nudge_at.isdigit() else 150000
-    level = 1 if ctx >= nudge_at else 0
+    nudge_at = int(nudge_at) if nudge_at.isdigit() and int(nudge_at) > 0 else 150000
 
-    # ---- speak only on a crossing --------------------------------------------
-    # State is per transcript, so /clear starts clean. Storing the level (not a flag) is
-    # what re-arms the nudge after a compact: context falls, level falls, and the next
-    # climb crosses again.
+    # A LADDER, not a one-shot. Speaking once at 150k and then never again is useless in a
+    # session that reaches 500k -- the argument for compacting only gets stronger as the
+    # context grows, so the reminder should keep pace. `level` is how many whole multiples
+    # of the threshold the context has passed: 150k -> 1, 310k -> 2, 460k -> 3.
+    level = ctx // nudge_at
+
+    # ---- speak only when a new rung is reached -------------------------------
+    # State is per transcript, so /clear starts clean. Storing the rung NUMBER rather than
+    # a been-here flag does two jobs at once: it fires again on each new multiple, and it
+    # re-arms after a compact, because context falls, the rung falls, and climbing back
+    # crosses a rung again.
     stated = Path(os.environ.get("CLAUDE_PLUGIN_DATA")
                   or (Path.home() / ".claude" / ".tokenomics-statusline"))
     try:
@@ -114,10 +120,23 @@ def main():
     if level <= seen:
         return 0
 
+    # Escalate on ARITHMETIC, not adjectives. Each rung is a genuinely larger number, so
+    # the facts carry the urgency; louder wording would just read as nagging, and nagging
+    # is the failure mode a plugin about wasted tokens can least afford.
     cut = ctx * 67 // 100
-    msg = (f"◆ context {human(ctx)} — a /compact here would cut about {human(cut)} from "
-           f"every call that follows (measured cut ≈67%). It repays over the calls "
-           f"remaining, so it is worth doing while there are some.")
+    if level >= 3:
+        msg = (f"⚠ context {human(ctx)} — {level}× past the point where a compact starts "
+               f"paying for itself, and this is reminder {level}. Every call re-sends all "
+               f"of it, and any turn boundary re-files the lot at 2×. A /compact would "
+               f"take about {human(cut)} off every call from here on.")
+    elif level == 2:
+        msg = (f"◆ context {human(ctx)} — still climbing, and this is the second reminder. "
+               f"Every call now re-sends {human(ctx)}; a /compact would cut about "
+               f"{human(cut)} of that from all of them.")
+    else:
+        msg = (f"◆ context {human(ctx)} — a /compact here would cut about {human(cut)} from "
+               f"every call that follows (measured cut ≈67%). It repays over the calls "
+               f"remaining, so it is worth doing while there are some.")
     sys.stdout.write(json.dumps({"systemMessage": msg}, ensure_ascii=False) + "\n")
     return 0
 

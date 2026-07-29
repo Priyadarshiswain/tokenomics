@@ -94,6 +94,13 @@ Opus 5 · call  in 38  ↻41.2k  ✎2.1k  out 740
                           also makes earlier detail easier to lose
 ```
 
+The nudge's opening words are **bold and coloured**; the explanation stays dim. The cost
+tier used to be dim end to end, which made the one row with something to say the quietest
+thing on screen — it read as a footnote and got skipped.
+
+```
+```
+
 `↻` cache read · `✎` cache write. Row 1 is the last call, row 2 is the session to date.
 
 Row 3 is the context window — the only "how much room is left" figure here; everything
@@ -148,7 +155,7 @@ desktop included. It ships with the plugin, so there is **no setup step**. It fi
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `TOKENOMICS_NUDGE_AT` | `150000` | context tokens for the cost tier |
+| `TOKENOMICS_NUDGE_AT` | `150000` | context tokens per rung of the cost ladder |
 | `TOKENOMICS_NUDGE` | `on` | set to `off` to silence the hook |
 | `TOKENOMICS_NUDGE_WINDOW` | `262144` | bytes of transcript tail the hook reads |
 
@@ -172,8 +179,26 @@ removed `jq` — the dependency that was hardest to satisfy there. The one remai
 the hook: its command names `python3`, and a Windows install may only provide `python`. It
 fails quietly if so — you lose the nudge, nothing breaks.
 
-**Both tiers speak only when a threshold is crossed**, never on every turn, and a compact
-re-arms them so they warn again if context climbs back. A tool about wasted tokens should
+**The cost tier is a ladder, and it escalates.** It speaks once per
+`TOKENOMICS_NUDGE_AT` of context — at 150k, 300k, 450k — and stays silent on the turns
+between. Speaking once and then never again would be useless in a session that reaches
+500k, where the case for compacting only gets stronger.
+
+Each rung is firmer than the last, but the escalation is **arithmetic, not adjectives** —
+every rung states a genuinely larger number, because the cost genuinely is larger:
+
+```
+◆ context 155k — a /compact here would cut about 104k from every call that follows…
+◆ context 310k — still climbing, and this is the second reminder. Every call now
+                 re-sends 310k; a /compact would cut about 208k of that…
+⚠ context 465k — 3× past the point where a compact starts paying for itself, and this
+                 is reminder 3. Every call re-sends all of it, and any turn boundary
+                 re-files the lot at 2×…
+```
+
+A compact drops the context and re-arms the ladder, so it warns again on the way back up.
+
+Neither tier speaks on every turn, A tool about wasted tokens should
 not itself be noise.
 
 The hook reads a bounded 256 KB tail rather than the whole file — **0.04s on a 253 MB
