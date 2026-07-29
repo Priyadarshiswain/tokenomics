@@ -82,12 +82,25 @@ claude plugin marketplace remove pd-claude-plugins
 ```
 
 Then delete the state tokenomics has written outside its own directory — `--statusline
-remove` prints these paths for you:
+remove` prints these paths for you.
 
 ```bash
-rm -rf ~/.claude/.tokenomics-statusline ~/.claude/tokenomics
+rm -rf ~/.claude/.tokenomics-statusline
 rm -f ~/.claude/settings.json.tokenomics-bak
 ```
+
+Your report bundles are a separate decision, because they are yours rather than ours.
+`~/.claude/tokenomics/` holds one directory per measured session, and nothing above
+touches it. Delete it only if you want the reports gone:
+
+```bash
+rm -rf ~/.claude/tokenomics
+```
+
+Skipping that leaves them in place, and a later reinstall picks them up where they were.
+They are also regenerable from the transcripts under `~/.claude/projects/` for as long as
+those exist — but regenerating is a deliberate step, not something a reinstall does for
+you.
 
 One directory is left that is not ours to delete from inside the plugin, and that nothing
 else clears either — the versioned install cache. `claude plugin update` adds a directory
@@ -99,8 +112,7 @@ iteration: ten directories, 1.5 MB. To remove it:
 rm -rf ~/.claude/plugins/cache/pd-claude-plugins
 ```
 
-`~/.claude/tokenomics/` holds the report bundles, one directory per session, so check it
-before deleting if you want to keep any. `.tokenomics-statusline/` is per-session status
+`.tokenomics-statusline/` is per-session status
 line state and prunes itself after 30 days. The hook's own state lives in the plugin data
 directory that Claude Code manages, and `claude plugin uninstall` deletes that for you
 unless you pass `--keep-data`.
