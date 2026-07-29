@@ -552,6 +552,40 @@ def mode_list(explicit_project, nsess, nsess_set):
         print(f"{sid:<10} {started:<17} {calls:>7} {tokens:>12}  {label}")
 
 
+def prune_bundles(root, days=30):
+    """Report bundles are one directory per session and nothing else ever removes them:
+    ~2.4MB accumulated in two days of development. The status line already prunes its own
+    state this way; this closes the gap that left the biggest thing we write growing
+    without limit.
+
+    Deliberately narrow, because unlike .state files these are user-facing artifacts:
+    only the DEFAULT root (never a -d directory the user named), only subdirectories
+    carrying the data.json every bundle has -- proof we wrote them rather than something
+    that happened to be filed here -- and never silently, so a deletion is always
+    something you were told about."""
+    if os.environ.get("TOKENOMICS_PRUNE", "on") == "off" or days <= 0:
+        return
+    marker = root / ".pruned"
+    try:
+        # Marker-throttled to once a day: the steady-state cost is one stat(), not a
+        # scan of every bundle on every run.
+        if marker.is_file() and time.time() - marker.stat().st_mtime < 86400:
+            return
+        cutoff, gone = time.time() - days * 86400, []
+        for p in sorted(root.iterdir()):
+            if p.is_dir() and (p / "data.json").is_file() and p.stat().st_mtime < cutoff:
+                shutil.rmtree(p, ignore_errors=True)
+                gone.append(p.name)
+        marker.touch()
+    except OSError:
+        return
+    if gone:
+        print(f"tokenomics: pruned {len(gone)} report bundle(s) untouched for {days}+ "
+              f"days ({', '.join(gone[:5])}{'…' if len(gone) > 5 else ''}) — set "
+              "TOKENOMICS_KEEP_DAYS, or TOKENOMICS_PRUNE=off to keep them forever",
+              file=sys.stderr)
+
+
 def load_settings(settings):
     """Parse settings.json, or refuse loudly. Shared so that init and remove cannot
     drift into disagreeing about what an unusable settings file looks like."""
@@ -857,6 +891,14 @@ def main(argv):
 
     # ------------------------------------------------------------- bundle mode
     d = Path(dirp) if dirp else HOME / ".claude" / "tokenomics" / short
+    # Only the default root is ours to tidy. A -d directory was named by the user, and
+    # deleting anything inside it would be us taking liberties with somebody else's path.
+    if not dirp:
+        try:
+            keep = int(os.environ.get("TOKENOMICS_KEEP_DAYS") or 30)
+        except ValueError:
+            keep = 30
+        prune_bundles(HOME / ".claude" / "tokenomics", keep)
     d.mkdir(parents=True, exist_ok=True)
     data = measure(f)
     (d / "data.json").write_text(dumps(data), encoding="utf-8")

@@ -49,7 +49,11 @@ fi
 python3 "$TOK" --sessions abc >/dev/null 2>&1 && bad "--sessions abc must be rejected" \
   || ok "non-numeric value rejected"
 
-python3 "$TOK" -h | grep -q '^usage:' && ok "-h prints usage" || bad "-h prints usage"
+# Plain grep, not grep -q, wherever the tool keeps writing after the matching line: -q
+# closes the pipe on its first match, the writer takes a broken pipe and exits 120, and
+# `pipefail` fails the assertion for a behaviour that was correct. Plain grep drains the
+# input first, so the exit status reflects the match and nothing else.
+python3 "$TOK" -h | grep '^usage:' >/dev/null && ok "-h prints usage" || bad "-h prints usage"
 
 # ---- --statusline init --------------------------------------------------------
 # This one WRITES to ~/.claude/settings.json, so every case runs against a throwaway
@@ -332,10 +336,58 @@ rm -rf "$DK"
 # Any directory holding *.jsonl is a valid target — that is how exported or copied
 # transcripts get measured. The port briefly required it to sit under ~/.claude.
 XD=$(mktemp -d); cp fixture.jsonl "$XD/abc123-external.jsonl"
-python3 "$TOK" --project "$XD" --json 2>/dev/null | grep -q '"records": 9' \
+python3 "$TOK" --project "$XD" --json 2>/dev/null | grep '"records": 9' >/dev/null \
   && ok "--project accepts a transcript directory outside ~/.claude" \
   || bad "--project accepts a transcript directory outside ~/.claude"
 rm -rf "$XD"
+
+# ---- report bundle pruning -------------------------------------------------------
+# This one DELETES directories, so the cases that matter are the ones where it must not.
+PH=$(mktemp -d); PR="$PH/.claude/tokenomics"; mkdir -p "$PR"
+mkdir -p "$PR/oldbundle" "$PR/newbundle" "$PR/notours"
+echo '{}' > "$PR/oldbundle/data.json"
+echo '{}' > "$PR/newbundle/data.json"
+echo 'hi' > "$PR/notours/notes.txt"
+touch -t 200001010000 "$PR/oldbundle" "$PR/notours"
+
+HOME="$PH" python3 "$TOK" fixture.jsonl >/dev/null 2>&1
+[ ! -d "$PR/oldbundle" ] \
+  && ok "prune removes a bundle untouched for 30+ days" \
+  || bad "prune removes a bundle untouched for 30+ days"
+[ -d "$PR/newbundle" ] && ok "prune keeps a fresh bundle" || bad "prune keeps a fresh bundle"
+[ -d "$PR/notours" ] \
+  && ok "prune leaves an old directory with no data.json alone" \
+  || bad "prune deleted a directory tokenomics did not write"
+
+mkdir -p "$PR/old2"; echo '{}' > "$PR/old2/data.json"; touch -t 200001010000 "$PR/old2"
+HOME="$PH" python3 "$TOK" fixture.jsonl >/dev/null 2>&1
+[ -d "$PR/old2" ] \
+  && ok "prune is marker-throttled to once a day" || bad "prune is marker-throttled to once a day"
+
+rm -f "$PR/.pruned"
+TOKENOMICS_PRUNE=off HOME="$PH" python3 "$TOK" fixture.jsonl >/dev/null 2>&1
+[ -d "$PR/old2" ] \
+  && ok "TOKENOMICS_PRUNE=off keeps bundles forever" || bad "TOKENOMICS_PRUNE=off keeps bundles forever"
+
+rm -f "$PR/.pruned"
+# Captured, not piped into grep -q: under `pipefail` a matching grep closes the pipe
+# early, the tool takes a broken pipe on its next write and exits 120, and the assertion
+# fails on plumbing while the behaviour under test was correct.
+PMSG=$(HOME="$PH" python3 "$TOK" fixture.jsonl 2>&1 >/dev/null)
+case "$PMSG" in
+  *"pruned 1 report bundle"*) ok "prune says what it deleted rather than doing it silently" ;;
+  *) bad "prune says what it deleted rather than doing it silently: $PMSG" ;;
+esac
+[ ! -d "$PR/old2" ] && ok "prune runs again once the marker is cleared" \
+  || bad "prune runs again once the marker is cleared"
+
+# A -d directory was named by the user. Nothing in it is ours to delete, ever.
+DD=$(mktemp -d); mkdir -p "$DD/oldbundle"; echo '{}' > "$DD/oldbundle/data.json"
+touch -t 200001010000 "$DD/oldbundle"
+rm -f "$PR/.pruned"
+HOME="$PH" python3 "$TOK" -d "$DD" fixture.jsonl >/dev/null 2>&1
+[ -d "$DD/oldbundle" ] && ok "a -d directory is never pruned" || bad "a -d directory was pruned"
+rm -rf "$PH" "$DD"
 
 echo "----"
 echo "$pass passed, $fail failed"

@@ -54,6 +54,51 @@ Once installed, `tokenomics` is on the Bash tool's `PATH` inside a Claude Code s
 Claude can run `tokenomics --json` without knowing where the plugin lives. From your own
 terminal, call the script by path (see below).
 
+## Uninstall
+
+**Retract the status line first**, while the plugin is still installed:
+
+```bash
+python3 ~/.claude/plugins/marketplaces/pd-claude-plugins/plugins/tokenomics/scripts/tokenomics.py --statusline remove
+```
+
+Order matters here, and getting it wrong is the one way this plugin can leave you worse off
+than it found you. `statusLine` is a *user* setting — see the section below for why a plugin
+cannot ship one — so `--statusline init` writes an absolute path into your
+`~/.claude/settings.json` pointing at the marketplace clone. Uninstalling deletes that
+clone. Do it in that order and you are left with a `statusLine` that runs a script which no
+longer exists, on every prompt, with nothing to tell you where it came from.
+
+`--statusline remove` backs the file up first, deletes only the `statusLine` key, and leaves
+every other setting alone. It refuses to remove a status line that is not ours unless you
+pass `--force`, and it still works if you did uninstall first — it deliberately does not
+need `statusline.py` to be present, because that is exactly when you need it most.
+
+Then remove the plugin and the marketplace:
+
+```bash
+claude plugin uninstall tokenomics@pd-claude-plugins
+claude plugin marketplace remove pd-claude-plugins
+```
+
+Then delete the state tokenomics has written outside its own directory — `--statusline
+remove` prints these paths for you:
+
+```bash
+rm -rf ~/.claude/.tokenomics-statusline ~/.claude/tokenomics
+rm -f ~/.claude/settings.json.tokenomics-bak
+```
+
+`~/.claude/tokenomics/` holds the report bundles, one directory per session, so check it
+before deleting if you want to keep any. `.tokenomics-statusline/` is per-session status
+line state and prunes itself after 30 days. The hook's own state lives in the plugin data
+directory that Claude Code manages, and `claude plugin uninstall` deletes that for you
+unless you pass `--keep-data`.
+
+None of this can be automated from inside the plugin: Claude Code has no uninstall or
+teardown hook, so a plugin gets no chance to run anything on its way out. That is why the
+retraction is a command you run rather than something that just happens.
+
 ## The status line
 
 **Terminal only.** The status line renders in the Claude Code CLI. It does not appear in the
@@ -74,8 +119,10 @@ because `bin/` is on the *Bash tool's* PATH, not your shell's.
 
 It finds the installed script, writes the block into `~/.claude/settings.json`, and backs
 the file up first. It refuses to replace a `statusLine` you already have unless you pass
-`--force`, and refuses to touch the file at all if it is not valid JSON. To see the current
-state without changing anything, use `--statusline` without `init`:
+`--force`, and refuses to touch the file at all if it is not valid JSON. `--statusline
+remove` takes the block back out again — run it before uninstalling, see **Uninstall**
+above. To see the current state without changing anything, use `--statusline` with no
+action:
 
 ```bash
 python3 ~/.claude/plugins/marketplaces/pd-claude-plugins/plugins/tokenomics/scripts/tokenomics.py --statusline
