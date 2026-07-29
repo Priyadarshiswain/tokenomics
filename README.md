@@ -29,7 +29,16 @@ is that this tool shows you why you hit a limit sooner than you expected.
 
 ## Install
 
+From your terminal:
+
 ```bash
+claude plugin marketplace add Priyadarshiswain/tokenomics
+claude plugin install tokenomics@pd-claude-plugins
+```
+
+Or, inside a Claude Code session, the same thing as slash commands:
+
+```
 /plugin marketplace add Priyadarshiswain/tokenomics
 /plugin install tokenomics@pd-claude-plugins
 ```
@@ -54,19 +63,22 @@ Desktop users get the same numbers on demand from `/tokenomics`.
 
 `statusLine` is also a user setting that a plugin cannot ship — plugin `settings.json`
 currently honours only the `agent` and `subagentStatusLine` keys — so it needs one setup
-step. The tool does it for you:
+step. The tool does it for you — from your terminal:
 
 ```bash
-tokenomics --statusline init
+python3 ~/.claude/plugins/marketplaces/pd-claude-plugins/plugins/tokenomics/scripts/tokenomics.py --statusline init
 ```
+
+Inside a session it is just `tokenomics --statusline init` — the bare name works there
+because `bin/` is on the *Bash tool's* PATH, not your shell's.
 
 It finds the installed script, writes the block into `~/.claude/settings.json`, and backs
 the file up first. It refuses to replace a `statusLine` you already have unless you pass
 `--force`, and refuses to touch the file at all if it is not valid JSON. To see the current
-state without changing anything:
+state without changing anything, use `--statusline` without `init`:
 
 ```bash
-tokenomics --statusline
+python3 ~/.claude/plugins/marketplaces/pd-claude-plugins/plugins/tokenomics/scripts/tokenomics.py --statusline
 ```
 
 The path it writes points at `marketplaces/` — the marketplace clone, which
@@ -201,8 +213,8 @@ A compact drops the context and re-arms the ladder, so it warns again on the way
 Neither tier speaks on every turn. A tool about wasted tokens should
 not itself be noise.
 
-The hook reads a bounded 256 KB tail rather than the whole file — **0.04s on a 253 MB
-transcript**. Every failure path exits silently, so an unreadable transcript or malformed
+The hook reads a bounded 256 KB tail rather than the whole file — **~25 ms on a 253 MB
+transcript**, measured on the Python version. Every failure path exits silently, so an unreadable transcript or malformed
 input can never disrupt a turn.
 
 ## The measure tool
