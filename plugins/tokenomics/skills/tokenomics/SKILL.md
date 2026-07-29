@@ -104,13 +104,13 @@ Other things worth knowing when reading a transcript directly:
   `--dashboard`, `--artifact`.
 - `/tokenomics:statusline` — report whether the status line is configured; `init` to set
   it up.
-- `tokenomics` — measure any transcript, render HTML. `--list`, `--projects`,
+- `tokenomics` — measure any transcript, render HTML (python3; no jq). `--list`, `--projects`,
   `--watch N --serve PORT`, `--inline -o page.html`, `--json`. Available as a bare command
   on the Bash tool's PATH when the plugin is enabled; otherwise call
-  `scripts/tokenomics.sh` by path. Prefer `--json` and read the numbers — do not dump a
+  `scripts/tokenomics.py` by path. Prefer `--json` and read the numbers — do not dump a
   whole transcript or the full JSON into the conversation, which is exactly the mistake
   this skill exists to prevent.
-- `statusline/statusline.sh` — live per-call and per-session token counts, a context-window
+- `statusline/statusline.py` — live per-call and per-session token counts, a context-window
   bar, and the compact nudge. Terminal only: the desktop app has no surface for a status
   line, and a plugin cannot ship one anyway (plugin `settings.json` honours only `agent`
   and `subagentStatusLine`). Setting it up is `tokenomics --statusline init`, which writes
@@ -118,7 +118,7 @@ Other things worth knowing when reading a transcript directly:
   reports the current state without changing anything. If a user says the status line is
   missing, run the reporting form first — it distinguishes "not configured" from
   "configured, pointing somewhere else".
-- `hooks/compact-nudge.sh` — a `Stop` hook carrying the cost half of the nudge everywhere,
+- `hooks/compact-nudge.py` — a `Stop` hook carrying the cost half of the nudge everywhere,
   desktop included. Two tiers exist: **cost** (context ≥150k, any window) and **capacity**
   (≥70% of the window). Only the status line can do the second, because the window size is
   given to status lines and not to hooks. If a user asks why a green context bar appears

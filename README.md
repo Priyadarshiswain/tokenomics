@@ -34,9 +34,11 @@ is that this tool shows you why you hit a limit sooner than you expected.
 /plugin install tokenomics@pd-claude-plugins
 ```
 
-Requires `bash` and `jq`. `python3` is optional — it is only used by `--serve` for the local
-dashboard (which binds to localhost only), and everything else works without it. Developed
-and tested on macOS and Linux; Windows is untested.
+Requires **`python3`** and nothing else. There is no shell script left in the plugin and
+`jq` is not needed — everything was ported to Python, which also removed the dependency
+that was hardest to satisfy on Windows. The local dashboard binds to localhost only.
+Developed and tested on macOS and Linux; **Windows is untested** — see the note under the
+compact nudge.
 
 Once installed, `tokenomics` is on the Bash tool's `PATH` inside a Claude Code session, so
 Claude can run `tokenomics --json` without knowing where the plugin lives. From your own
@@ -75,10 +77,14 @@ To do it by hand instead, add this to `~/.claude/settings.json`:
 ```json
 "statusLine": {
   "type": "command",
-  "command": "bash ~/.claude/plugins/marketplaces/pd-claude-plugins/plugins/tokenomics/statusline/statusline.sh",
+  "command": "python3 ~/.claude/plugins/marketplaces/pd-claude-plugins/plugins/tokenomics/statusline/statusline.py",
   "padding": 0
 }
 ```
+
+`--statusline init` writes something better than that: the **absolute path of the Python
+running it**, rather than the name `python3`. It is the one place we can know the right
+interpreter instead of guessing, because our own code is running at the time.
 
 ```
 Opus 5 · call  in 38  ↻41.2k  ✎2.1k  out 740
@@ -161,6 +167,11 @@ not a cliff, and nothing special happens at exactly 70%. That line is deliberate
 names what degrades rather than implying the model is broadly worse. It is also the only
 claim in this plugin not measured from a transcript.
 
+**Windows.** Untested, and honest about it. The plugin now needs only `python3`, which
+removed `jq` — the dependency that was hardest to satisfy there. The one remaining risk is
+the hook: its command names `python3`, and a Windows install may only provide `python`. It
+fails quietly if so — you lose the nudge, nothing breaks.
+
 **Both tiers speak only when a threshold is crossed**, never on every turn, and a compact
 re-arms them so they warn again if context climbs back. A tool about wasted tokens should
 not itself be noise.
@@ -176,12 +187,12 @@ same arguments work as a bare `tokenomics` command.
 
 ```bash
 cd plugins/tokenomics
-bash scripts/tokenomics.sh                       # newest session of the current project
-bash scripts/tokenomics.sh --list                # browse sessions
-bash scripts/tokenomics.sh --projects            # every project, sizes, date ranges
-bash scripts/tokenomics.sh --watch 30 --serve 8899   # live local dashboard
-bash scripts/tokenomics.sh --inline -o page.html # self-contained snapshot, for publishing
-bash scripts/tokenomics.sh --json                # just the measured data
+python3 scripts/tokenomics.py                       # newest session of the current project
+python3 scripts/tokenomics.py --list                # browse sessions
+python3 scripts/tokenomics.py --projects            # every project, sizes, date ranges
+python3 scripts/tokenomics.py --watch 30 --serve 8899   # live local dashboard
+python3 scripts/tokenomics.py --inline -o page.html # self-contained snapshot, for publishing
+python3 scripts/tokenomics.py --json                # just the measured data
 ```
 
 Deterministic: same transcript in, byte-identical output. No network, no wall-clock reads
@@ -206,11 +217,12 @@ plugins/tokenomics/                  the plugin itself; everything below ships o
   commands/tokenomics.md             /tokenomics — measure and report
   commands/statusline.md             /tokenomics:statusline — check or set up the status line
   skills/tokenomics/SKILL.md         model-triggered mental model
-  scripts/tokenomics.sh              measure + render
+  scripts/tokenomics.py              measure + render
+  scripts/assets/                    report CSS/JS, inlined into the HTML at build time
   bin/tokenomics                     wrapper, so it is a bare command on the Bash tool's PATH
-  statusline/statusline.sh           live status line (terminal)
+  statusline/statusline.py           live status line (terminal)
   hooks/hooks.json                   Stop-hook registration
-  hooks/compact-nudge.sh             the compact nudge (everywhere, incl. desktop)
+  hooks/compact-nudge.py             the compact nudge (everywhere, incl. desktop)
   docs/tokenomics-explained.md       long-form companion
   tests/run.sh                       golden test for the measurement + CLI guards
 ```

@@ -1,0 +1,20 @@
+<div class="wrap">
+  <div class="bar-live">
+    <span class="pulse off" id="pulse"></span>
+    <label>session <select id="sess"></select></label>
+    <button id="refresh" type="button">Refresh now</button>
+    <label>auto
+      <select id="every">
+        <option value="0">off</option>
+        <option value="10">10s</option>
+        <option value="30" selected>30s</option>
+        <option value="60">1m</option>
+        <option value="300">5m</option>
+      </select>
+    </label>
+    <span class="stamp" id="stamp">loading&hellip;</span>
+  </div>
+  <div id="app"></div>
+</div>
+<div id="tip" role="status"></div>
+<script>

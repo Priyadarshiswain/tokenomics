@@ -6,15 +6,15 @@ allowed-tools: Bash
 
 Check or configure the tokenomics status line.
 
-The tool lives at `${CLAUDE_PLUGIN_ROOT}/scripts/tokenomics.sh`.
+The tool lives at `${CLAUDE_PLUGIN_ROOT}/scripts/tokenomics.py`.
 
 Arguments: `$ARGUMENTS`
 
-- **no argument** → `bash ${CLAUDE_PLUGIN_ROOT}/scripts/tokenomics.sh --statusline`
+- **no argument** → `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tokenomics.py --statusline`
   Reports where the status-line script is and whether `~/.claude/settings.json` points at
   it. Read-only. Run this first when someone says the status line is missing — it
   distinguishes "not configured" from "configured, pointing somewhere else".
-- **`init`** → `bash ${CLAUDE_PLUGIN_ROOT}/scripts/tokenomics.sh --statusline init`
+- **`init`** → `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tokenomics.py --statusline init`
   Writes the `statusLine` block into `~/.claude/settings.json`.
 - **`init --force`** → same with `--force`, which replaces a `statusLine` that is already
   set to something else.

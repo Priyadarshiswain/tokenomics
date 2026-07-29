@@ -6,7 +6,7 @@ allowed-tools: Bash, Read, Artifact
 
 Run the tokenomics measure tool and report what it found.
 
-The tool lives at `${CLAUDE_PLUGIN_ROOT}/scripts/tokenomics.sh`. It reads Claude Code
+The tool lives at `${CLAUDE_PLUGIN_ROOT}/scripts/tokenomics.py`. It reads Claude Code
 transcripts under `~/.claude/projects/` and is read-only — it never modifies a transcript.
 
 Arguments: `$ARGUMENTS`
@@ -16,11 +16,11 @@ Pick the mode from the argument:
 - no argument, or a session id → measure that session (default: the newest session of the
   current project) and summarise the result in the chat. Use `--json` and read the numbers;
   do NOT dump the whole JSON into the conversation.
-- `--list` → `bash ${CLAUDE_PLUGIN_ROOT}/scripts/tokenomics.sh --list`
-- `--projects` → `bash ${CLAUDE_PLUGIN_ROOT}/scripts/tokenomics.sh --projects`
-- `--dashboard` → `bash ${CLAUDE_PLUGIN_ROOT}/scripts/tokenomics.sh --watch 30 --serve 8899`
+- `--list` → `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tokenomics.py --list`
+- `--projects` → `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tokenomics.py --projects`
+- `--dashboard` → `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tokenomics.py --watch 30 --serve 8899`
   in the background, then give the user the URL. This one keeps running.
-- `--artifact` → `bash ${CLAUDE_PLUGIN_ROOT}/scripts/tokenomics.sh --inline -o <path>.html`,
+- `--artifact` → `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tokenomics.py --inline -o <path>.html`,
   then publish that file with the Artifact tool. Publishing needs a Claude turn — a shell
   command cannot call the Artifact tool, which is the whole reason this mode exists as a
   slash command. Republishing the same path keeps the same URL.

@@ -3,7 +3,7 @@
 #
 # Claude Code puts an enabled plugin's bin/ on the Bash tool's PATH, which makes
 # `tokenomics --list` work inside a session without anyone needing to know where the
-# plugin was installed. Every argument is forwarded to scripts/tokenomics.sh untouched.
+# plugin was installed. Every argument is forwarded to scripts/tokenomics.py untouched.
 set -uo pipefail
 
 root="${CLAUDE_PLUGIN_ROOT:-}"
@@ -23,7 +23,7 @@ if [ -z "$root" ]; then
   root="$(cd "$(dirname "$self")/.." && pwd)"
 fi
 
-target="$root/scripts/tokenomics.sh"
+target="$root/scripts/tokenomics.py"
 [ -f "$target" ] || { echo "tokenomics: cannot find $target" >&2; exit 1; }
 
-exec bash "$target" "$@"
+exec python3 "$target" "$@"

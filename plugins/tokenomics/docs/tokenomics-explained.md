@@ -337,9 +337,9 @@ message's previous contribution when a newer version of the same id arrives.
 |---|---|
 | `/tokenomics` | measure a session, summarise it, or render an HTML report |
 | `/tokenomics:statusline` | check or set up the status line |
-| `scripts/tokenomics.sh` | the measure + render tool |
-| `statusline/statusline.sh` | live per-call and per-session counts, a context bar, and the compact nudge — terminal only |
-| `hooks/compact-nudge.sh` | the cost half of that nudge as a `Stop` hook, so it also reaches the desktop app |
+| `scripts/tokenomics.py` | the measure + render tool |
+| `statusline/statusline.py` | live per-call and per-session counts, a context bar, and the compact nudge — terminal only |
+| `hooks/compact-nudge.py` | the cost half of that nudge as a `Stop` hook, so it also reaches the desktop app |
 | `skills/tokenomics/SKILL.md` | the model reaches for this mental model unprompted |
 
 The nudge splits along the same line this document does. **Cost** — context ≥150k, any
@@ -350,14 +350,14 @@ lose. The status line can make both arguments; a hook is never handed the window
 it makes the first one only.
 
 ```bash
-bash scripts/tokenomics.sh                            # newest session of the current project
-bash scripts/tokenomics.sh --list                     # browse sessions
-bash scripts/tokenomics.sh --projects                 # every project, sizes, date ranges
-bash scripts/tokenomics.sh --watch 30 --serve 8899    # live dashboard at localhost:8899
-bash scripts/tokenomics.sh --inline -o page.html      # self-contained snapshot, for publishing
-bash scripts/tokenomics.sh --json                     # just the measured data
-bash scripts/tokenomics.sh --statusline init          # configure the status line
-bash scripts/tokenomics.sh --help                     # every flag
+python3 scripts/tokenomics.py                            # newest session of the current project
+python3 scripts/tokenomics.py --list                     # browse sessions
+python3 scripts/tokenomics.py --projects                 # every project, sizes, date ranges
+python3 scripts/tokenomics.py --watch 30 --serve 8899    # live dashboard at localhost:8899
+python3 scripts/tokenomics.py --inline -o page.html      # self-contained snapshot, for publishing
+python3 scripts/tokenomics.py --json                     # just the measured data
+python3 scripts/tokenomics.py --statusline init          # configure the status line
+python3 scripts/tokenomics.py --help                     # every flag
 ```
 
 Deterministic by construction — the "measured through" stamp comes from the last record's
@@ -451,9 +451,20 @@ family tree), `requestId`. Compact boundaries are their own record type:
 
 ---
 
-## 12. Known idea, not yet built
+## 12. Known issues and ideas
 
-**`surgery <session-id> --drop <n>`** — surgically remove a fat exchange from the middle of
+### `CLAUDE_CONFIG_DIR` is ignored — logged, not yet fixed
+
+Claude Code lets you move its storage off `~/.claude` by setting `CLAUDE_CONFIG_DIR`.
+Nothing in this plugin honours it: the measure tool, the status line and the hook all
+hardcode `~/.claude/projects`. For anyone who has moved it, the tool reports no
+transcripts and the status line renders nothing, with no explanation of why. Affects every
+platform, not just Windows. The fix is one shared constant instead of three hardcoded
+paths.
+
+### `surgery <session-id> --drop <n>` — not built
+
+Surgically remove a fat exchange from the middle of
 a transcript rather than compacting everything: rank exchanges by `toolUseResult` size, let
 the user pick, then cut **whole exchanges only** (never orphan a `tool_use` from its
 `tool_result` — that makes the reconstructed request malformed) and re-link `parentUuid`
