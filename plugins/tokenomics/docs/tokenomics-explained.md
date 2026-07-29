@@ -462,6 +462,15 @@ transcripts and the status line renders nothing, with no explanation of why. Aff
 platform, not just Windows. The fix is one shared constant instead of three hardcoded
 paths.
 
+### The `bin/` shim is bash — flagged, deliberately unsolved
+
+`bin/tokenomics` is what makes the bare `tokenomics` command work: Claude Code puts a
+plugin's `bin/` on the Bash tool's PATH. It is a bash script, so it is the one part of
+the plugin that still assumes a POSIX shell. The right shape on Windows is not obvious —
+a bare `.py` on PATH may be worse than the shim, and the likely answer is a `.cmd`
+sibling. Logged during the 2026-07-29 review; the fix belongs in its own change, with a
+Windows machine to verify on.
+
 ### `surgery <session-id> --drop <n>` — not built
 
 Surgically remove a fat exchange from the middle of
