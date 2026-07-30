@@ -1,5 +1,5 @@
 {
-  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "pd-claude-plugins",
   "description": "Claude Code plugins by Priyadarshi Swain",
   "owner": {
@@ -9,7 +9,16 @@
     {
       "name": "tokenomics",
       "description": "Measure where a Claude Code session's tokens and context actually go, per call and per session — as an HTML report, a live status line, or a compact nudge that works in the desktop app too. Token counts only, no pricing.",
-      "source": "./plugins/tokenomics"
+      "source": "./plugins/tokenomics",
+      "homepage": "https://github.com/Priyadarshiswain/tokenomics#readme",
+      "category": "monitoring",
+      "tags": [
+        "tokens",
+        "context-window",
+        "cache",
+        "statusline",
+        "transcript-analysis"
+      ]
     }
   ]
 }
