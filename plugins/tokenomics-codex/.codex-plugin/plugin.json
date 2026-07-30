@@ -1,6 +1,6 @@
 {
   "name": "tokenomics-codex",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A deterministic, local dashboard for Codex session context and token usage.",
   "author": {
     "name": "Priyadarshi Swain",
