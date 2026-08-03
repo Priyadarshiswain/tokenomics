@@ -33,21 +33,24 @@ From your terminal:
 
 ```bash
 claude plugin marketplace add Priyadarshiswain/tokenomics
-claude plugin install tokenomics@pd-claude-plugins
+claude plugin install tokenomics@tokenomics
 ```
 
 Or, inside a Claude Code session, the same thing as slash commands:
 
 ```
 /plugin marketplace add Priyadarshiswain/tokenomics
-/plugin install tokenomics@pd-claude-plugins
+/plugin install tokenomics@tokenomics
 ```
+
+Or just ask Claude Code, in a sentence: *"install the tokenomics plugin from
+github.com/Priyadarshiswain/tokenomics"* — it runs the two commands above for you.
 
 To try it without installing anything, clone this repo and load it for one session
 (run this from the repository root):
 
 ```bash
-claude --plugin-dir ./plugins/tokenomics
+claude --plugin-dir .
 ```
 
 That registers no marketplace and nothing to uninstall — the plugin is unloaded when the
@@ -75,7 +78,7 @@ terminal, call the script by path (see below).
 **Retract the status line first**, while the plugin is still installed:
 
 ```bash
-python3 ~/.claude/plugins/marketplaces/pd-claude-plugins/plugins/tokenomics/scripts/tokenomics.py --statusline remove
+python3 ~/.claude/plugins/marketplaces/tokenomics/scripts/tokenomics.py --statusline remove
 ```
 
 Order matters here, and getting it wrong is the one way this plugin can leave you worse off
@@ -93,8 +96,8 @@ need `statusline.py` to be present, because that is exactly when you need it mos
 Then remove the plugin and the marketplace:
 
 ```bash
-claude plugin uninstall tokenomics@pd-claude-plugins
-claude plugin marketplace remove pd-claude-plugins
+claude plugin uninstall tokenomics@tokenomics
+claude plugin marketplace remove tokenomics
 ```
 
 Then delete the state tokenomics has written outside its own directory — `--statusline
@@ -128,7 +131,7 @@ What we could not confirm is whether that sweep still reaches the tree after
 would rather have the space back now than find out:
 
 ```bash
-rm -rf ~/.claude/plugins/cache/pd-claude-plugins
+rm -rf ~/.claude/plugins/cache/tokenomics
 ```
 
 `.tokenomics-statusline/` is per-session status
@@ -158,7 +161,7 @@ currently honours only the `agent` and `subagentStatusLine` keys — so it needs
 step. The tool does it for you — from your terminal:
 
 ```bash
-python3 ~/.claude/plugins/marketplaces/pd-claude-plugins/plugins/tokenomics/scripts/tokenomics.py --statusline init
+python3 ~/.claude/plugins/marketplaces/tokenomics/scripts/tokenomics.py --statusline init
 ```
 
 Inside a session it is just `tokenomics --statusline init` — the bare name works there
@@ -172,7 +175,7 @@ above. To see the current state without changing anything, use `--statusline` wi
 action:
 
 ```bash
-python3 ~/.claude/plugins/marketplaces/pd-claude-plugins/plugins/tokenomics/scripts/tokenomics.py --statusline
+python3 ~/.claude/plugins/marketplaces/tokenomics/scripts/tokenomics.py --statusline
 ```
 
 The path it writes points at `marketplaces/` — the marketplace clone, which
@@ -185,7 +188,7 @@ To do it by hand instead, add this to `~/.claude/settings.json`:
 ```json
 "statusLine": {
   "type": "command",
-  "command": "python3 ~/.claude/plugins/marketplaces/pd-claude-plugins/plugins/tokenomics/statusline/statusline.py",
+  "command": "python3 ~/.claude/plugins/marketplaces/tokenomics/statusline/statusline.py",
   "padding": 0
 }
 ```
@@ -360,7 +363,8 @@ tests/run.sh                       43 tests: measurement golden file, CLI guards
                                    the nudge ladder, report-bundle pruning
 ```
 
-Run the tests from this directory with `bash tests/run.sh`.
+Run the tests from the repository root with `bash tests/run.sh`.
 
-The Codex package is a separate, independent plugin — see
-[../tokenomics-codex](../tokenomics-codex). Host-specific code is deliberately not shared.
+The Codex CLI port is a separate, independent plugin in its own repository —
+[Priyadarshiswain/tokenomics-codex](https://github.com/Priyadarshiswain/tokenomics-codex).
+Host-specific code is deliberately not shared.

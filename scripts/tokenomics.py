@@ -671,13 +671,13 @@ def mode_statusline(action, force):
     local = plugin_root / "statusline" / "statusline.py"
     # Running from the installed marketplace copy? Then this file IS the right target.
     # Otherwise prefer an installed copy over a dev clone (its path survives updates),
-    # found with a glob pinned to THIS plugin — an unpinned */plugins/*/ would let any
-    # other installed plugin with the same layout win the alphabetical race.
+    # found under the marketplace directory named for THIS plugin's marketplace — never
+    # an unpinned */ glob, which would let any other installed plugin win the race.
     if local.is_file() and str(local).startswith(str(mroot) + os.sep):
         sl = local
     else:
         sl = next(iter(sorted(mroot.glob(
-            "*/plugins/tokenomics/statusline/statusline.py"))), None)
+            "tokenomics/statusline/statusline.py"))), None)
         if sl is None and local.is_file():
             sl = local
     if sl is None:
