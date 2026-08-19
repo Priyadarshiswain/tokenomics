@@ -9,17 +9,17 @@ what actually changes them.
 - **Subscription (Pro / Max / Team / Enterprise)** — no. Usage is included in the plan. What
   these tokens actually spend is your **rate-limit budget**, which is what decides whether
   you hit a cap mid-afternoon. Read every figure below as *headroom*.
-- **API key (Console billing)** — yes, at Anthropic's published per-token rates. The rate
+- **API key (Console billing)** — yes, at Anthropic's published per-token rates. The weight
   card in §2 is not an analogy for you; it is the shape of your invoice.
 
 The mechanism is identical either way, and so is every piece of advice here. Only the unit
-of pain changes. To keep the arithmetic legible this document needs *a* unit, so it borrows
-one:
+of pain changes. To keep the arithmetic legible this document needs *a* unit, so it defines
+one — the **wu**, a *weight unit*:
 
-> **₹1 ≡ the weight of 1000 fresh input tokens.**
-> Every other class is a multiple of that. It is a *relative weight*, not a claim about your
-> account. If ₹ is distracting, read it as "cost units" — or, on a subscription, as
-> "percent of the limit you'll hit today".
+> **1 wu ≡ the weight of 1000 fresh input tokens.**
+> Every other class is a multiple of that. It is a *relative weight*, not a currency and not
+> a claim about your account. On an API key it is proportional to spend; on a subscription,
+> read it as "share of the limit you'll hit today".
 
 The worked figures throughout come from one real session measured with this plugin
 (5.5M tokens, 56 API calls, 8 turns, one model switch and one `/compact`). They are an
@@ -54,13 +54,13 @@ Real API rates, expressed as multiples of the fresh-input rate:
 
 | What happens | Rate | Per 1000 tokens |
 |---|---|---|
-| Fresh input (uncached words) | 1× | ₹1.00 |
-| **Cache read** (re-reading filed pages) | **0.1×** | **₹0.10** |
-| **Cache write, 5-minute TTL** | 1.25× | ₹1.25 |
-| **Cache write, 1-hour TTL** | **2×** | **₹2.00** |
-| Output (what the model writes) | 5× | ₹5.00 |
+| Fresh input (uncached words) | 1× | 1.00 wu |
+| **Cache read** (re-reading filed pages) | **0.1×** | **0.10 wu** |
+| **Cache write, 5-minute TTL** | 1.25× | 1.25 wu |
+| **Cache write, 1-hour TTL** | **2×** | **2.00 wu** |
+| Output (what the model writes) | 5× | 5.00 wu |
 
-A 20× spread between the cheapest and dearest class means **token counts and weighted cost
+A 20× spread between the cheapest and dearest class means **token counts and weight
 are two different questions.** Here is the same session answered both ways:
 
 **By volume** — what a naive total shows you:
@@ -77,16 +77,16 @@ are two different questions.** Here is the same session answered both ways:
 
 | Class | Tokens × rate | Weight | Share |
 |---|---|---|---|
-| **cache write** | 422,430 × 2 | **₹845** | **49.8%** |
-| cache read | 4,961,159 × 0.1 | ₹496 | 29.3% |
-| output | 70,987 × 5 | ₹355 | 20.9% |
-| fresh input | 103 × 1 | ₹0.10 | <0.01% |
-| **total** | | **₹1,696** | |
+| **cache write** | 422,430 × 2 | **845 wu** | **49.8%** |
+| cache read | 4,961,159 × 0.1 | 496 wu | 29.3% |
+| output | 70,987 × 5 | 355 wu | 20.9% |
+| fresh input | 103 × 1 | 0.10 wu | <0.01% |
+| **total** | | **1,696 wu** | |
 
 Three consequences, all of which are easy to get backwards:
 
 1. **Cache read is 91% of the tokens and 29% of the weight.** It is the number that makes
-   session totals look alarming, and it is the *least* of your problems. Rent, not the bill.
+   session totals look alarming, and it is the *least* of your problems. Rent, not the spend.
 2. **Cache write is 7.7% of the tokens and half the weight.** Writes are what a session
    actually spends on. Everything in §5 is about when they happen and why.
 3. **Output is ~1% of the tokens but ~21% of the weight.** Not the main event, not
@@ -138,10 +138,10 @@ Every API call re-reads the whole stack. That is a standing charge, paid whether
 anything interesting happened:
 
 ```
-rent per call = context size × ₹0.10 / 1000
+rent per call = context size × 0.10 wu / 1000
 ```
 
-At 108k context that is **₹10.80 per call**. Note *call*, not *message* — a single question
+At 108k context that is **10.80 wu per call**. Note *call*, not *message* — a single question
 from you can trigger 10+ calls as the model runs tools, and each one pays rent.
 
 ### Rule 2 — the byte-identical prefix rule
@@ -217,17 +217,17 @@ so this remains a hypothesis rather than a measurement.
 ### The one-line cost of talking
 
 ```
-each message you send ≈ (current context − bookmark floor) × ₹2 / 1000
+each message you send ≈ (current context − bookmark floor) × 2 wu / 1000
 ```
 
-For rebuild B that was 95,537 × ₹2/1000 = **₹191**, to ask one question. And it *grows* as
+For rebuild B that was 95,537 × 2 wu/1000 = **191 wu**, to ask one question. And it *grows* as
 the session grows.
 
 ---
 
 ## 6. What `/compact` actually does, in numbers
 
-**Before.** Stack = 107,585 tokens. Rent = **₹10.76 per call**. Nothing is wrong; that's
+**Before.** Stack = 107,585 tokens. Rent = **10.76 wu per call**. Nothing is wrong; that's
 just the standing charge for carrying history.
 
 **The compact.** Threw out the 107.6k history, replaced it with a 35.5k summary,
@@ -235,10 +235,10 @@ bookmarked it.
 
 | | |
 |---|---|
-| one-off cost | 36,828 tokens × ₹2/1000 = **₹73.66** |
-| rent before | 107,585 × ₹0.10/1000 = **₹10.76 per call** |
-| rent after | 35,481 × ₹0.10/1000 = **₹3.55 per call** |
-| saving | **₹7.21 per call, forever** |
+| one-off cost | 36,828 tokens × 2 wu/1000 = **73.66 wu** |
+| rent before | 107,585 × 0.10 wu/1000 = **10.76 wu per call** |
+| rent after | 35,481 × 0.10 wu/1000 = **3.55 wu per call** |
+| saving | **7.21 wu per call, forever** |
 | **break-even** | 73.66 ÷ 7.21 ≈ **10 calls** |
 
 26+ calls followed, so it cleared break-even comfortably. Note the shape of that
@@ -262,19 +262,19 @@ currently exists, and permanently less exists:
 | | with compact (measured) | without compact (counterfactual) |
 |---|---|---|
 | stack being re-filed | summary 35k + tail | history 108k + same tail |
-| rebuild B re-file @ 2× | **95,537 = ₹191** | ~167,600 ≈ ₹335 |
+| rebuild B re-file @ 2× | **95,537 = 191 wu** | ~167,600 ≈ 335 wu |
 | every read since | **−72,104/call, forever** | full freight |
 
 > **A rebuild changes the *rate* you pay for context (0.1× → 2×, once).
 > A compact changes the *amount* of context (forever).**
 
-Both turn-boundary rebuilds landed after the compact, each roughly ₹145 cheaper than the
+Both turn-boundary rebuilds landed after the compact, each roughly 145 wu cheaper than the
 same event would have been without it — together about **4× the compact's own cost**,
 recovered purely as accident insurance. (The right-hand column is an estimate, not a
 measurement: it assumes the un-compacted history would have sat above the same floor.)
 
 The one genuinely wasted spend in that session: the compact's own 36.8k summary write was
-itself re-filed 8 calls later by an unrelated rebuild. Unlucky sequencing, small money.
+itself re-filed 8 calls later by an unrelated rebuild. Unlucky sequencing, small weight.
 
 ### `/clear` vs `/compact`
 
@@ -301,7 +301,7 @@ true weight of a tool output = its size × the number of calls left in the sessi
 ```
 
 A 33k-token log read with 1000 calls still to come is **33M cache-read tokens** before the
-session ends — ₹3,300 at 0.1×, from one `cat`. The same read on the last call costs 33k.
+session ends — 3,300 wu at 0.1×, from one `cat`. The same read on the last call costs 33k.
 Position in the session matters as much as size.
 
 **Practical**: grep for the verdict line, don't `cat` the log. Read line ranges, not whole
@@ -380,7 +380,7 @@ compact-boundary record, or a preceding `end_turn` (a turn boundary). Compact ec
 come partly from the transcript's own `compactMetadata` (`trigger`, `preTokens`,
 `postTokens`, `cumulativeDroppedTokens`, `durationMs`).
 
-The rendered report deliberately shows **token counts only, no pricing** — the ₹ unit in
+The rendered report deliberately shows **token counts only, no pricing** — the wu unit in
 this document is a teaching device, not something the tool asserts about your account.
 
 ---

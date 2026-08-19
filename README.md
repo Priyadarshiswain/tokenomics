@@ -2,20 +2,17 @@
 
 A Claude Code plugin that measures where a session's **tokens and context** actually go.
 
-Not a billing tool — it reports token counts and never asserts a price.
+Not a billing tool — it reports token counts and never asserts a price. On a subscription,
+tokens spend your rate-limit headroom; on an API key they are metered. The mechanism is
+identical either way, and what a token is *worth* gets its own treatment at the top of
+[docs/tokenomics-explained.md](docs/tokenomics-explained.md).
 
-Whether those tokens are *money* depends on how you're authenticated, and the difference is
-worth stating plainly:
+The model has no memory, so every API call re-sends the entire conversation; caching makes
+that survivable, and nearly everything interesting about a long session is about **when the
+cache gets rewritten** — a model switch, an idle gap, a `/compact`, or you sending a
+message. This plugin makes those events visible in your own sessions.
 
-| How you use Claude Code | What a token spends |
-|---|---|
-| **Pro / Max / Team / Enterprise** | nothing directly — usage is included in the plan. Tokens spend your **rate-limit budget**: the thing that decides whether you hit a cap mid-afternoon. |
-| **API key (Console billing)** | **real money**, per token, at Anthropic's published rates. |
-
-The mechanism this measures is identical either way, and so is the advice. Only the unit of
-pain changes: on a subscription a wasteful session costs you *headroom*; on API billing it
-costs you *cash*. If you are on a plan and have never thought about tokens, the useful frame
-is that this tool shows you why you hit a limit sooner than you expected.
+![A measured session: token classes, per-call series, rebuilds with causes](docs/assets/report.png)
 
 ## What it gives you
 
@@ -73,82 +70,6 @@ Once installed, `tokenomics` is on the Bash tool's `PATH` inside a Claude Code s
 Claude can run `tokenomics --json` without knowing where the plugin lives. From your own
 terminal, call the script by path (see below).
 
-## Uninstall
-
-**Retract the status line first**, while the plugin is still installed:
-
-```bash
-python3 ~/.claude/plugins/marketplaces/tokenomics/scripts/tokenomics.py --statusline remove
-```
-
-Order matters here, and getting it wrong is the one way this plugin can leave you worse off
-than it found you. `statusLine` is a *user* setting — see the section below for why a plugin
-cannot ship one — so `--statusline init` writes an absolute path into your
-`~/.claude/settings.json` pointing at the marketplace clone. Uninstalling deletes that
-clone. Do it in that order and you are left with a `statusLine` that runs a script which no
-longer exists, on every prompt, with nothing to tell you where it came from.
-
-`--statusline remove` backs the file up first, deletes only the `statusLine` key, and leaves
-every other setting alone. It refuses to remove a status line that is not ours unless you
-pass `--force`, and it still works if you did uninstall first — it deliberately does not
-need `statusline.py` to be present, because that is exactly when you need it most.
-
-Then remove the plugin and the marketplace:
-
-```bash
-claude plugin uninstall tokenomics@tokenomics
-claude plugin marketplace remove tokenomics
-```
-
-Then delete the state tokenomics has written outside its own directory — `--statusline
-remove` prints these paths for you.
-
-```bash
-rm -rf ~/.claude/.tokenomics-statusline
-rm -f ~/.claude/settings.json.tokenomics-bak
-```
-
-Your report bundles are a separate decision, because they are yours rather than ours.
-`~/.claude/tokenomics/` holds one directory per measured session, and nothing above
-touches it. Delete it only if you want the reports gone:
-
-```bash
-rm -rf ~/.claude/tokenomics
-```
-
-Skipping that leaves them in place, and a later reinstall picks them up where they were.
-They are also regenerable from the transcripts under `~/.claude/projects/` for as long as
-those exist — but regenerating is a deliberate step, not something a reinstall does for
-you.
-
-One directory outlives all of the above: the versioned install cache. Claude Code marks a
-superseded or uninstalled version as orphaned and sweeps it 14 days later — a grace period
-so a session already running on the old version does not lose its files mid-flight. So it
-clears itself, eventually, and you can stop reading here.
-
-What we could not confirm is whether that sweep still reaches the tree after
-`claude plugin marketplace remove`, since by then nothing installed refers to it. If you
-would rather have the space back now than find out:
-
-```bash
-rm -rf ~/.claude/plugins/cache/tokenomics
-```
-
-`.tokenomics-statusline/` is per-session status
-line state and prunes itself after 30 days. The hook's own state lives in the plugin data
-directory that Claude Code manages, and `claude plugin uninstall` deletes that for you
-unless you pass `--keep-data`. The exception is a session run with `--plugin-dir`: there is
-no installed plugin to uninstall, so its data directory is left behind and only you can
-remove it.
-
-```bash
-rm -rf ~/.claude/plugins/data/tokenomics-inline
-```
-
-None of this can be automated from inside the plugin: Claude Code has no uninstall or
-teardown hook, so a plugin gets no chance to run anything on its way out. That is why the
-retraction is a command you run rather than something that just happens.
-
 ## The status line
 
 **Terminal only.** The status line renders in the Claude Code CLI. It does not appear in the
@@ -171,7 +92,7 @@ It finds the installed script, writes the block into `~/.claude/settings.json`, 
 the file up first. It refuses to replace a `statusLine` you already have unless you pass
 `--force`, and refuses to touch the file at all if it is not valid JSON. `--statusline
 remove` takes the block back out again — run it before uninstalling, see **Uninstall**
-above. To see the current state without changing anything, use `--statusline` with no
+below. To see the current state without changing anything, use `--statusline` with no
 action:
 
 ```bash
@@ -341,6 +262,82 @@ The transcript **re-writes each assistant message while it streams**, so the sam
 `message.id` appears on several lines. A naive sum is about 2× too high. Both tools here
 deduplicate by `message.id`; the status line does it incrementally, subtracting a message's
 previous contribution when a newer version of the same id arrives.
+
+## Uninstall
+
+**Retract the status line first**, while the plugin is still installed:
+
+```bash
+python3 ~/.claude/plugins/marketplaces/tokenomics/scripts/tokenomics.py --statusline remove
+```
+
+Order matters here, and getting it wrong is the one way this plugin can leave you worse off
+than it found you. `statusLine` is a *user* setting — see **The status line** above for why
+a plugin cannot ship one — so `--statusline init` writes an absolute path into your
+`~/.claude/settings.json` pointing at the marketplace clone. Uninstalling deletes that
+clone. Do it in that order and you are left with a `statusLine` that runs a script which no
+longer exists, on every prompt, with nothing to tell you where it came from.
+
+`--statusline remove` backs the file up first, deletes only the `statusLine` key, and leaves
+every other setting alone. It refuses to remove a status line that is not ours unless you
+pass `--force`, and it still works if you did uninstall first — it deliberately does not
+need `statusline.py` to be present, because that is exactly when you need it most.
+
+Then remove the plugin and the marketplace:
+
+```bash
+claude plugin uninstall tokenomics@tokenomics
+claude plugin marketplace remove tokenomics
+```
+
+Then delete the state tokenomics has written outside its own directory — `--statusline
+remove` prints these paths for you.
+
+```bash
+rm -rf ~/.claude/.tokenomics-statusline
+rm -f ~/.claude/settings.json.tokenomics-bak
+```
+
+Your report bundles are a separate decision, because they are yours rather than ours.
+`~/.claude/tokenomics/` holds one directory per measured session, and nothing above
+touches it. Delete it only if you want the reports gone:
+
+```bash
+rm -rf ~/.claude/tokenomics
+```
+
+Skipping that leaves them in place, and a later reinstall picks them up where they were.
+They are also regenerable from the transcripts under `~/.claude/projects/` for as long as
+those exist — but regenerating is a deliberate step, not something a reinstall does for
+you.
+
+One directory outlives all of the above: the versioned install cache. Claude Code marks a
+superseded or uninstalled version as orphaned and sweeps it 14 days later — a grace period
+so a session already running on the old version does not lose its files mid-flight. So it
+clears itself, eventually, and you can stop reading here.
+
+What we could not confirm is whether that sweep still reaches the tree after
+`claude plugin marketplace remove`, since by then nothing installed refers to it. If you
+would rather have the space back now than find out:
+
+```bash
+rm -rf ~/.claude/plugins/cache/tokenomics
+```
+
+`.tokenomics-statusline/` is per-session status
+line state and prunes itself after 30 days. The hook's own state lives in the plugin data
+directory that Claude Code manages, and `claude plugin uninstall` deletes that for you
+unless you pass `--keep-data`. The exception is a session run with `--plugin-dir`: there is
+no installed plugin to uninstall, so its data directory is left behind and only you can
+remove it.
+
+```bash
+rm -rf ~/.claude/plugins/data/tokenomics-inline
+```
+
+None of this can be automated from inside the plugin: Claude Code has no uninstall or
+teardown hook, so a plugin gets no chance to run anything on its way out. That is why the
+retraction is a command you run rather than something that just happens.
 
 ## Layout
 
