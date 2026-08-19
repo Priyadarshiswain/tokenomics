@@ -26,8 +26,12 @@ message. This plugin makes those events visible in your own sessions.
 
 ## Install
 
-Just ask Claude Code, in a sentence: *"install the tokenomics plugin from
-github.com/Priyadarshiswain/tokenomics"* — it runs the two commands below for you.
+Just ask Claude Code, in a sentence — paste this into the prompt and it runs the two
+commands below for you:
+
+```text
+install the tokenomics plugin from github.com/Priyadarshiswain/tokenomics
+```
 
 Or, inside a Claude Code session, as slash commands:
 
