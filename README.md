@@ -26,22 +26,22 @@ message. This plugin makes those events visible in your own sessions.
 
 ## Install
 
-From your terminal:
+Just ask Claude Code, in a sentence: *"install the tokenomics plugin from
+github.com/Priyadarshiswain/tokenomics"* — it runs the two commands below for you.
 
-```bash
-claude plugin marketplace add Priyadarshiswain/tokenomics
-claude plugin install tokenomics@tokenomics
-```
-
-Or, inside a Claude Code session, the same thing as slash commands:
+Or, inside a Claude Code session, as slash commands:
 
 ```
 /plugin marketplace add Priyadarshiswain/tokenomics
 /plugin install tokenomics@tokenomics
 ```
 
-Or just ask Claude Code, in a sentence: *"install the tokenomics plugin from
-github.com/Priyadarshiswain/tokenomics"* — it runs the two commands above for you.
+Or from your terminal:
+
+```bash
+claude plugin marketplace add Priyadarshiswain/tokenomics
+claude plugin install tokenomics@tokenomics
+```
 
 To try it without installing anything, clone this repo and load it for one session
 (run this from the repository root):
