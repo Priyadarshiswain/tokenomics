@@ -353,6 +353,7 @@ statusline/statusline.py           live status line (terminal)
 hooks/hooks.json                   Stop-hook registration
 hooks/compact-nudge.py             the compact nudge (everywhere, incl. desktop)
 docs/tokenomics-explained.md       long-form companion
+docs/anatomy-of-a-session.md       the essay: one real session, measured end to end
 tests/run.sh                       43 tests: measurement golden file, CLI guards,
                                    --statusline init and remove, ctx fallbacks,
                                    the nudge ladder, report-bundle pruning
