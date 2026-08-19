@@ -118,13 +118,7 @@ To do it by hand instead, add this to `~/.claude/settings.json`:
 running it**, rather than the name `python3`. It is the one place we can know the right
 interpreter instead of guessing, because our own code is running at the time.
 
-```
-Opus 5 · call  in 38  ↻41.2k  ✎2.1k  out 740
-         sess  in 2.0k  ↻3.9M  ✎238.8k  out 55.2k
-         ctx  ■■■■■■■■■■■■··  91%  183.0k/200.0k
-         ⚠ /compact now — 91% of window · ~122.6k off every later call · long context
-                          also makes earlier detail easier to lose
-```
+![The status line: per-call and per-session token counts, a context bar, and the compact nudge](docs/assets/statusline.png)
 
 The nudge's opening words are **bold and coloured**; the explanation stays dim. The cost
 tier used to be dim end to end, which made the one row with something to say the quietest
