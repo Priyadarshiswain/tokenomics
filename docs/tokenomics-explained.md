@@ -290,6 +290,35 @@ re-warming costs little.
 **Compact preserves continuity; clear preserves context.** Between two genuinely unrelated
 pieces of work, clear is the better instrument by a wide margin.
 
+### Auto-compact: the same event, on a timer you didn't set
+
+Claude Code will also run the compact *for* you. When context approaches the model's
+window (minus a buffer reserved for output), it compacts automatically — the terminal
+counts down to it as "X% until auto-compact", and the toggle lives in `/config` (recent
+versions also have an `/autocompact` dialog). This is not a new feature: it appears in the
+public changelog by v0.2.98, close to the start of the changelog itself.
+
+In the transcript it is the **same `compact_boundary` record** with
+`compactMetadata.trigger: "auto"` instead of `"manual"`, and this plugin's report labels
+it `(auto)`. The mechanics and the economics are identical to §6. Two things differ:
+
+1. **The timing is chosen by the tool, not by you** — it fires when the window forces it,
+   which is usually mid-task rather than at a boundary you picked. The summary is written
+   over whatever happened to be in flight.
+2. **It is a capacity backstop, not a cost decision.** Auto-compact answers "will the next
+   prompt fit"; it says nothing about rent. Left to the backstop alone, a long session
+   saws along near the top of the window — paying maximum rent per call between compacts.
+   A manual compact at a natural boundary, earlier, keeps the standing charge lower for
+   the same continuity. That gap is exactly why this plugin's nudge argues from *cost* at
+   150k, long before capacity forces anything.
+
+The threshold is dynamic — computed from the model's window and its output buffer, not a
+fixed percentage — so don't hardcode assumptions about when it fires. Newer versions also
+guard its failure modes: a circuit breaker stops retries after 3 failed attempts
+(v2.1.76), and a thrash detector halts the loop when context refills to the limit
+immediately after three compacts in a row (v2.1.89) — the automated version of §6's
+warning to check whether context has already climbed back above its pre-compact level.
+
 ---
 
 ## 7. Tool output is a recurring cost, not a one-off
