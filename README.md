@@ -227,6 +227,13 @@ every rung states a genuinely larger number, because the cost genuinely is large
 
 A compact drops the context and re-arms the ladder, so it warns again on the way back up.
 
+**Why a nudge at all, when Claude Code auto-compacts?** Auto-compact is a capacity
+backstop: it fires when the window forces it, usually mid-task, and says nothing about
+cost. The nudge argues from cost at 150k — long before the cliff — so you can compact at
+a boundary you choose instead of one the window chooses. Auto and manual compacts land in
+the transcript identically (`trigger: "auto"` vs `"manual"`), and the report labels each;
+see the explained doc's §6 for the full comparison.
+
 Neither tier speaks on every turn. A tool about wasted tokens should
 not itself be noise.
 
